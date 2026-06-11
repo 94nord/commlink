@@ -18,6 +18,10 @@
 /storage/*.key
 /storage/pail
 /vendor
+/docker/nginx/certs
+/tests/e2e/.auth
+/playwright-report
+/test-results
 auth.json
 Homestead.json
 Homestead.yaml

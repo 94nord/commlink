@@ -17,6 +17,12 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
+
+        // Test-only state endpoints (routes/testing.php) are called from the
+        // Playwright request context, which has no CSRF token.
+        $middleware->validateCsrfTokens(except: [
+            '_test/*',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
