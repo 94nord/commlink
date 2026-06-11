@@ -1,15 +1,18 @@
 <?php
 
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
-    return Inertia::render('welcome');
+    return redirect()->route('dashboard');
 })->name('home');
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('dashboard', function () {
-        return Inertia::render('dashboard');
+    Route::get('dashboard', function (Request $request) {
+        return Inertia::render('dashboard', [
+            'corporationName' => $request->user()->corporation->name,
+        ]);
     })->name('dashboard');
 });
 
