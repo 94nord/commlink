@@ -61,6 +61,8 @@ config/routes/views (`docker/entrypoint-prod.sh`).
   `/_test/seed` in `routes/testing.php`), loaded **only** in the testing
   environment. Auth is established once in `tests/e2e/auth.setup.ts` and
   reused via stored session state.
+- The test entrypoint clears `public/hot` (per blueprint); if dev HMR stops
+  after `make test`, run `docker compose restart vite`.
 
 ## Conventions
 

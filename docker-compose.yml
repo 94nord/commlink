@@ -64,8 +64,8 @@ services:
     environment:
       FPM_HOST: app-dev
     ports:
-      - "8443:443"
-      - "8080:80"
+      - "${DEV_HTTPS_PORT:-8443}:443"
+      - "${DEV_HTTP_PORT:-8080}:80"
     volumes:
       - ./public:/var/www/html/public:ro
       - ./docker/nginx/templates-dev:/etc/nginx/templates:ro
@@ -95,9 +95,10 @@ services:
       POSTGRES_USER: ${DB_USERNAME}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "5432:5432"
+      - "${DEV_DB_PORT:-5432}:5432"
     volumes:
-      - db-data:/var/lib/postgresql/data
+      # postgres:18+ keeps PGDATA in a versioned subdirectory of this mount
+      - db-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
       interval: 2s
@@ -112,8 +113,8 @@ services:
       MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
       MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${DEV_MINIO_PORT:-9000}:9000"
+      - "${DEV_MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - minio-data:/data
     profiles: [dev]
@@ -152,7 +153,7 @@ services:
     environment:
       FPM_HOST: app-test
     ports:
-      - "9080:80"
+      - "${TEST_HTTP_PORT:-9080}:80"
     volumes:
       - ./public:/var/www/html/public:ro
     depends_on:
@@ -166,9 +167,9 @@ services:
       POSTGRES_USER: ${TEST_DB_USERNAME:-inspection_book_test}
       POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:-inspection-book-test}
     ports:
-      - "5433:5432"
+      - "${TEST_DB_PORT:-5433}:5432"
     tmpfs:
-      - /var/lib/postgresql/data
+      - /var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${TEST_DB_USERNAME:-inspection_book_test} -d ${TEST_DB_DATABASE:-inspection_book_test}"]
       interval: 2s

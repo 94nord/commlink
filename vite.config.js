@@ -8,10 +8,7 @@ import { defineConfig } from 'vite';
 // HMR origin matches the https://localhost:8443 page and avoids mixed content.
 const certFile = 'docker/nginx/certs/localhost.crt';
 const keyFile = 'docker/nginx/certs/localhost.key';
-const https =
-    fs.existsSync(certFile) && fs.existsSync(keyFile)
-        ? { cert: fs.readFileSync(certFile), key: fs.readFileSync(keyFile) }
-        : undefined;
+const https = fs.existsSync(certFile) && fs.existsSync(keyFile) ? { cert: fs.readFileSync(certFile), key: fs.readFileSync(keyFile) } : undefined;
 
 export default defineConfig({
     plugins: [
