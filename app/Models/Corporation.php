@@ -27,4 +27,36 @@ class Corporation extends Model
     {
         return $this->hasMany(User::class);
     }
+
+    /**
+     * Get the customers belonging to the corporation.
+     */
+    public function customers(): HasMany
+    {
+        return $this->hasMany(Customer::class);
+    }
+
+    /**
+     * Get the projects belonging to the corporation.
+     */
+    public function projects(): HasMany
+    {
+        return $this->hasMany(Project::class);
+    }
+
+    /**
+     * Get the work orders (cases) belonging to the corporation.
+     */
+    public function workOrders(): HasMany
+    {
+        return $this->hasMany(WorkOrder::class);
+    }
+
+    /**
+     * Get the staff members belonging to the corporation.
+     */
+    public function staff(): HasMany
+    {
+        return $this->hasMany(Staff::class);
+    }
 }

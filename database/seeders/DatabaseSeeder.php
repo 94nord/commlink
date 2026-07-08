@@ -40,5 +40,10 @@ class DatabaseSeeder extends Seeder
             'email_verified_at' => now(),
             'password' => $password,
         ]);
+
+        // S2: a corporation always has at least one staff member — the founder.
+        $corporation->staff()->create([
+            'name' => env('SEED_USER_NAME', 'Example Admin'),
+        ]);
     }
 }

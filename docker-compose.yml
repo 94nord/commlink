@@ -2,7 +2,7 @@
 #
 #   prod  — app + web only; every value injected by the deployment platform
 #   dev   — adds PostgreSQL, MinIO and the Vite dev server over live-mounted
-#           source; nginx terminates self-signed TLS (make certs first)
+#           source; nginx terminates locally-trusted TLS via mkcert (make certs first)
 #   test  — isolated, disposable stack on its own ports; boots into a
 #           freshly-migrated empty database and can run alongside dev
 #

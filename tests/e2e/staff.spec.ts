@@ -1,0 +1,42 @@
+import { expect, test } from '@playwright/test';
+
+test('the founder is provisioned as staff and staff can be managed', async ({ page }) => {
+    await page.goto('/staff');
+    await expect(page.getByRole('heading', { name: 'Staff' })).toBeVisible();
+
+    // Scope to the content list — the sidebar nav is also built from ul/li.
+    const rows = page.locator('ul.divide-y > li');
+
+    // The founder staff member exists (provisioned by /_test/seed).
+    await expect(rows).toHaveCount(1);
+
+    // Add a second staff member
+    await page.getByRole('button', { name: 'New staff member' }).click();
+    await page.getByLabel('Name').fill('Second Inspector');
+    await page.getByRole('button', { name: 'Create staff member' }).click();
+
+    await expect(page.getByText('Second Inspector')).toBeVisible();
+    await expect(rows).toHaveCount(2);
+
+    // Rename them
+    await rows.filter({ hasText: 'Second Inspector' }).getByRole('button', { name: 'Edit staff member' }).click();
+    await page.getByLabel('Name').clear();
+    await page.getByLabel('Name').fill('Renamed Inspector');
+    await page.getByRole('button', { name: 'Save' }).click();
+
+    await expect(page.getByText('Renamed Inspector')).toBeVisible();
+
+    // Delete them: row trash button opens the confirm dialog, then confirm
+    await rows.filter({ hasText: 'Renamed Inspector' }).getByRole('button', { name: 'Delete staff member' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete staff member' }).click();
+
+    await expect(page.getByText('Renamed Inspector')).not.toBeVisible();
+    await expect(rows).toHaveCount(1);
+
+    // The last staff member cannot be deleted
+    await rows.getByRole('button', { name: 'Delete staff member' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Delete staff member' }).click();
+
+    await expect(page.getByText('A corporation must have at least one staff member.')).toBeVisible();
+    await expect(rows).toHaveCount(1);
+});

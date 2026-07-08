@@ -51,6 +51,24 @@ config/routes/views (`docker/entrypoint-prod.sh`).
 - No self-serve signup (D3): public registration is removed. Provision
   customers with `php artisan app:create-corporation`; dev seeding reads
   `SEED_*` vars from `.env` (`php artisan db:seed`).
+- Event spine (X1): record every state change with
+  `EventRecorder::record($corporation, 'thing.happened', subject: …)` —
+  append-only `events` table, one central log.
+- External refs (X2): host-mirrored business entities get
+  `$table->externalRef()` in migrations + the `HasExternalReference` trait;
+  `external_ref` null means the record stands alone.
+- Customer is the durable anchor (spec vocabulary since 2026-06-12; was
+  Party). Visits and work orders reference `customer_id`, never an email
+  column — resolution is always `Customer::findByEmail()` → customer →
+  interactions, so contact identities can move to their own table later
+  without touching any relationship.
+- WorkOrder implements the spec's **Case** (`case` is a PHP reserved word;
+  table `work_orders` because `jobs` belongs to Laravel's queue): one
+  apartment/matter, required `customer_id`, plain `address`, nullable
+  `project_id`. `AddCustomerToProject` is the one path that registers a
+  customer: resolve-or-create by email, then create the work order. Tenant
+  scoping in controllers: resolve models through
+  `$request->user()->corporation->…()->findOrFail()`, never bare bindings.
 
 ## Testing
 
@@ -71,3 +89,36 @@ config/routes/views (`docker/entrypoint-prod.sh`).
 - PostgreSQL in every environment; SQLite only inside PHPUnit.
 - Same Dockerfile for all environments; differences live in Compose profiles,
   entrypoints, and mounts — never forked Dockerfiles.
+
+##SCOPE
+- Specs found in inspection-booking-design.md file
+- Claude code prompts found in claude-code-prompts.md
+- Do ONLY what the current task asks. Do not scaffold, stub, or begin later phases.
+- When done, stop. Summarize what you built and how to run/verify it, then wait for review.
+- Vocabulary map (design doc → code): Customer → `Customer` · Case →
+  `WorkOrder` (PHP reserves `case`) · Staff → `Staff` (built; availability
+  windows deferred — staff are assumed always available for now, S2 invariant
+  enforced: founder provisioned at creation, last member undeletable) ·
+  Visit / Round → not built yet.
+  Where claude-code-prompts.md still says party/job/booking/resource/sendout
+  (its Phase 1 predates the doc's Staff/Round/Visit reframe), the design doc
+  wins.
+
+ARCHITECTURE (from the very first commit)
+- Multi-tenant: every domain row is scoped to a corporation (tenant).
+- Event spine: every state change records an event to one central event log.
+- Late-bound references: business entities carry an OPTIONAL external reference (for a
+  future host system), and a booking may exist before its job (party is the durable anchor).
+- Standalone only — no third-party / host integration yet.
+
+DESIGN DIRECTION
+- All create and edit flows open in a modal (dialog), triggered by an add/edit
+  button on the page that lists the records — no dedicated create/edit pages.
+
+DEV/TEST WORKFLOW
+- Each slice includes a minimal FE so it's testable
+  end-to-end, not backend-only.
+- Mail goes through the event -> outbox -> Mailable path (provider-swappable). In dev/test the
+  transport is Mailpit (in Docker) so nothing leaves the machine; a real provider is a prod-only
+  config swap. PHPUnit uses Mail::fake(); Playwright asserts against Mailpit's HTTP API.
+

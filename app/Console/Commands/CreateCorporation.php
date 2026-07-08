@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Corporation;
 use App\Models\User;
+use App\Support\EventRecorder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -62,12 +63,21 @@ class CreateCorporation extends Command
         $user = DB::transaction(function () use ($input) {
             $corporation = Corporation::create(['name' => $input['corporation']]);
 
-            return $corporation->users()->forceCreate([
+            $user = $corporation->users()->forceCreate([
                 'name' => $input['name'],
                 'email' => $input['email'],
                 'email_verified_at' => now(),
                 'password' => $input['password'],
             ]);
+
+            // S2: a corporation always has at least one staff member — the founder.
+            $staff = $corporation->staff()->create(['name' => $input['name']]);
+
+            EventRecorder::record($corporation, 'corporation.created', subject: $corporation);
+            EventRecorder::record($corporation, 'user.created', subject: $user);
+            EventRecorder::record($corporation, 'staff.created', subject: $staff);
+
+            return $user;
         });
 
         $this->info("Created corporation '{$user->corporation->name}' with admin user '{$user->email}'.");

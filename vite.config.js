@@ -4,7 +4,7 @@ import laravel from 'laravel-vite-plugin';
 import fs from 'node:fs';
 import { defineConfig } from 'vite';
 
-// Dev TLS: reuse the self-signed certificate nginx serves (make certs) so the
+// Dev TLS: reuse the mkcert certificate nginx serves (make certs) so the
 // HMR origin matches the https://localhost:8443 page and avoids mixed content.
 const certFile = 'docker/nginx/certs/localhost.crt';
 const keyFile = 'docker/nginx/certs/localhost.key';

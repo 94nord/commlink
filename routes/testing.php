@@ -39,8 +39,12 @@ Route::post('_test/seed', function (Request $request) {
         'password' => $validated['password'],
     ]);
 
+    // S2: a corporation always has at least one staff member — the founder.
+    $staff = $corporation->staff()->create(['name' => $validated['name']]);
+
     return response()->json([
         'corporation_id' => $corporation->id,
         'user_id' => $user->id,
+        'staff_id' => $staff->id,
     ]);
 });

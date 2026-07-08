@@ -25,12 +25,11 @@ test: build ## Full E2E cycle: assets → test stack → Playwright → teardown
 test-ui: build ## Interactive Playwright UI; leaves the test stack running
 	npx playwright test --ui
 
-certs: $(CERT_DIR)/localhost.crt ## Self-signed TLS certificate for dev nginx + Vite
+certs: $(CERT_DIR)/localhost.crt ## Locally-trusted TLS certificate (mkcert) for dev nginx + Vite
 
 $(CERT_DIR)/localhost.crt:
 	mkdir -p $(CERT_DIR)
-	openssl req -x509 -newkey rsa:2048 -nodes -days 825 \
-		-keyout $(CERT_DIR)/localhost.key \
-		-out $(CERT_DIR)/localhost.crt \
-		-subj "/CN=localhost" \
-		-addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+	mkcert -install
+	mkcert -cert-file $(CERT_DIR)/localhost.crt \
+		-key-file $(CERT_DIR)/localhost.key \
+		localhost 127.0.0.1

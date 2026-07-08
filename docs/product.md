@@ -86,5 +86,31 @@ Out of scope (for now):
 
 - **Done:** corporation + user slice — manual provisioning
   (`php artisan app:create-corporation`), login, corporation-scoped dashboard.
-- **Next:** projects, apartments + contacts, examinations, slots/booking,
-  emails.
+- **Done:** architecture spine — central event log (`events` table +
+  `EventRecorder::record()`, first events: `corporation.created`,
+  `user.created`, `user.logged_in`) and the optional external-reference
+  convention (`$table->externalRef()` macro + `HasExternalReference` trait).
+- **Done:** customer (was party) — the durable anchor (person/organization,
+  corporation-scoped, single inline email for now, optional host reference,
+  soft-delete erasure seam). Resolution goes email → customer → interactions.
+- **Done:** project setup — projects (optional grouping) + work orders
+  (implementing the spec's Case: apartment address + customer, optional
+  project link). Admin adds a customer by name/email/address; the customer is
+  resolved-or-created by normalized email, so one property manager = one
+  customer with many work orders. Events: `project.created`,
+  `customer.created`, `work_order.created`. Minimal Inertia UI: projects
+  list / create / detail with add-customer form.
+- **Done:** cases page — corporation-scoped list of all work orders at `/cases`
+  (sidebar item); delete a case (soft-delete + event, from project page or cases
+  page); edit a project name (modal on project show page); renamed "Add apartment"
+  → "Add case" in the UI.
+- **Done:** staff — the person who does the work and will later hold bookable
+  time. Corporation-scoped list at `/staff` with create/rename/delete in modals.
+  Every corporation is provisioned with one staff member at creation (the
+  founder), and the last staff member can never be deleted — a corporation
+  never has zero staff. Events: `staff.created`, `staff.updated`,
+  `staff.deleted`. **Decision: availability windows are deferred** — for now a
+  staff member is assumed available all the time; slot computation (future
+  slice) will treat staff as always free until availability is built.
+- **Next:** rounds, visits/booking, emails (design-doc vocabulary:
+  Round / Visit); staff availability windows when scheduling needs them.
