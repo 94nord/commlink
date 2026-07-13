@@ -38,6 +38,10 @@ class HandleInertiaRequests extends Middleware
     {
         [$message, $author] = str(Inspiring::quotes()->random())->explode('-');
 
+        // The appended is_admin accessor reads the linked staff row; load it
+        // once here so the sidebar gate never triggers an N+1.
+        $request->user()?->loadMissing('staff');
+
         return array_merge(parent::share($request), [
             ...parent::share($request),
             'name' => config('app.name'),

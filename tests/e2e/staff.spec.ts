@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+const MAILPIT = `http://localhost:${process.env.TEST_MAILPIT_PORT ?? 9025}`;
+
 test('the founder is provisioned as staff and staff can be managed', async ({ page }) => {
     await page.goto('/staff');
     await expect(page.getByRole('heading', { name: 'Staff' })).toBeVisible();
@@ -39,4 +41,30 @@ test('the founder is provisioned as staff and staff can be managed', async ({ pa
 
     await expect(page.getByText('A corporation must have at least one staff member.')).toBeVisible();
     await expect(rows).toHaveCount(1);
+});
+
+test('an admin invites a staff member to log in', async ({ page, request }) => {
+    await request.delete(`${MAILPIT}/api/v1/messages`);
+
+    await page.goto('/staff');
+    const rows = page.locator('ul.divide-y > li');
+
+    // Add a staff member with an email and the admin role
+    await page.getByRole('button', { name: 'New staff member' }).click();
+    await page.getByLabel('Name').fill('Casey Inspector');
+    await page.getByLabel(/Email/).fill('casey@e2e.test');
+    await page.getByRole('checkbox').click();
+    await page.getByRole('button', { name: 'Create staff member' }).click();
+
+    const row = rows.filter({ hasText: 'Casey Inspector' });
+    await expect(row).toContainText('Admin');
+
+    // Invite them — a set-password email lands in Mailpit
+    await row.getByRole('button', { name: 'Invite to log in' }).click();
+    await expect(row.getByRole('button', { name: 'Resend invite' })).toBeVisible();
+
+    await expect.poll(async () => {
+        const list = await (await request.get(`${MAILPIT}/api/v1/messages`)).json();
+        return list.messages.filter((m: { To: { Address: string }[] }) => m.To[0].Address === 'casey@e2e.test').length;
+    }).toBeGreaterThan(0);
 });

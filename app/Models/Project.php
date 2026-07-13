@@ -39,4 +39,13 @@ class Project extends Model
     {
         return $this->hasMany(WorkOrder::class);
     }
+
+    /**
+     * Rounds filed under this project (SO8 — organization only, not
+     * membership; a round's cases may come from anywhere).
+     */
+    public function rounds(): HasMany
+    {
+        return $this->hasMany(Round::class);
+    }
 }

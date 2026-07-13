@@ -34,16 +34,20 @@ class DatabaseSeeder extends Seeder
             'name' => env('SEED_CORPORATION_NAME', 'Example Corp'),
         ]);
 
-        $corporation->users()->forceCreate([
+        $user = $corporation->users()->forceCreate([
             'name' => env('SEED_USER_NAME', 'Example Admin'),
             'email' => $email,
             'email_verified_at' => now(),
             'password' => $password,
         ]);
 
-        // S2: a corporation always has at least one staff member — the founder.
+        // S2: a corporation always has at least one staff member — the
+        // founder, who is the admin and can log in.
         $corporation->staff()->create([
+            'user_id' => $user->id,
             'name' => env('SEED_USER_NAME', 'Example Admin'),
+            'email' => $email,
+            'is_admin' => true,
         ]);
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Concerns\HasExternalReference;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -36,12 +37,39 @@ class Staff extends Model
      */
     protected $fillable = [
         'corporation_id',
+        'user_id',
         'name',
+        'email',
+        'is_admin',
         'external_ref',
     ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'is_admin' => 'boolean',
+        ];
+    }
 
     public function corporation(): BelongsTo
     {
         return $this->belongsTo(Corporation::class);
+    }
+
+    /**
+     * The staff member's login, if one has been provisioned (D3: never
+     * self-serve).
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function visits(): HasMany
+    {
+        return $this->hasMany(Visit::class);
     }
 }

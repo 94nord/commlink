@@ -20,6 +20,7 @@ class StoreCustomerRequest extends FormRequest
                     ->where('corporation_id', $this->user()->corporation_id)
                     ->whereNull('deleted_at'),
             ],
+            'address' => ['nullable', 'string', 'max:255'],
         ];
     }
 

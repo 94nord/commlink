@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Corporation;
+use App\Models\Staff;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -42,5 +43,22 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
         ]);
+    }
+
+    /**
+     * Provision the user as an admin: link a staff member in the same
+     * corporation with the admin flag set (the founder shape).
+     */
+    public function admin(): static
+    {
+        return $this->afterCreating(function ($user) {
+            Staff::factory()->create([
+                'corporation_id' => $user->corporation_id,
+                'user_id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'is_admin' => true,
+            ]);
+        });
     }
 }

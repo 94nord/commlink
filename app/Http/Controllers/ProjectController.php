@@ -72,16 +72,8 @@ class ProjectController extends Controller
 
         $project = $corporation->projects()
             ->with(['workOrders' => fn ($query) => $query->with('customer')->latest()])
+            ->with(['rounds' => fn ($query) => $query->withCount('workOrders')->latest()])
             ->findOrFail($project);
-
-        $customers = $corporation->customers()
-            ->orderBy('name')
-            ->get()
-            ->map(fn ($customer) => [
-                'id' => $customer->id,
-                'name' => $customer->name,
-                'email' => $customer->email,
-            ]);
 
         return Inertia::render('projects/show', [
             'project' => [
@@ -90,11 +82,29 @@ class ProjectController extends Controller
             ],
             'workOrders' => $project->workOrders->map(fn ($workOrder) => [
                 'id' => $workOrder->id,
+                'title' => $workOrder->title,
                 'address' => $workOrder->address,
                 'customerName' => $workOrder->customer->name,
                 'customerEmail' => $workOrder->customer->email,
             ]),
-            'customers' => $customers,
+            'addableCases' => $corporation->workOrders()
+                ->whereNull('project_id')
+                ->with('customer')
+                ->orderBy('address')
+                ->get()
+                ->map(fn ($workOrder) => [
+                    'id' => $workOrder->id,
+                    'title' => $workOrder->title,
+                    'address' => $workOrder->address,
+                    'customerName' => $workOrder->customer->name,
+                ]),
+            'rounds' => $project->rounds->map(fn ($round) => [
+                'id' => $round->id,
+                'type' => $round->type->value,
+                'status' => $round->status->value,
+                'closeOffOn' => $round->close_off_on->toDateString(),
+                'caseCount' => $round->work_orders_count,
+            ]),
         ]);
     }
 }

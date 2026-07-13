@@ -70,8 +70,14 @@ class CreateCorporation extends Command
                 'password' => $input['password'],
             ]);
 
-            // S2: a corporation always has at least one staff member — the founder.
-            $staff = $corporation->staff()->create(['name' => $input['name']]);
+            // S2: a corporation always has at least one staff member — the
+            // founder, who is the admin and can log in from day one.
+            $staff = $corporation->staff()->create([
+                'user_id' => $user->id,
+                'name' => $input['name'],
+                'email' => $input['email'],
+                'is_admin' => true,
+            ]);
 
             EventRecorder::record($corporation, 'corporation.created', subject: $corporation);
             EventRecorder::record($corporation, 'user.created', subject: $user);

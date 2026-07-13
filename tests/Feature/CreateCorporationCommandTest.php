@@ -71,7 +71,11 @@ class CreateCorporationCommandTest extends TestCase
         $corporation = Corporation::where('name', 'Acme Inspections')->first();
 
         $this->assertSame(1, $corporation->staff()->count());
-        $this->assertSame('Jane Admin', $corporation->staff()->first()->name);
+
+        $staff = $corporation->staff()->first();
+        $this->assertSame('Jane Admin', $staff->name);
+        $this->assertTrue($staff->is_admin);
+        $this->assertTrue($staff->user->is($corporation->users()->first()));
     }
 
     public function test_the_created_user_can_log_in()

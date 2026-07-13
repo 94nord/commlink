@@ -1,6 +1,8 @@
 import ConfirmDialog from '@/components/confirm-dialog';
 import InputError from '@/components/input-error';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,6 +19,9 @@ const breadcrumbs: BreadcrumbItem[] = [
 interface StaffListItem {
     id: number;
     name: string;
+    email: string | null;
+    isAdmin: boolean;
+    hasLogin: boolean;
 }
 
 export default function StaffIndex({ staff }: { staff: StaffListItem[] }) {
@@ -26,9 +31,10 @@ export default function StaffIndex({ staff }: { staff: StaffListItem[] }) {
     const [editing, setEditing] = useState<StaffListItem | null>(null);
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [deleting, setDeleting] = useState(false);
+    const [invitingId, setInvitingId] = useState<number | null>(null);
 
-    const addForm = useForm({ name: '' });
-    const editForm = useForm({ name: '' });
+    const addForm = useForm({ name: '', email: '', is_admin: false });
+    const editForm = useForm({ name: '', email: '', is_admin: false });
 
     const submitAdd: FormEventHandler = (e) => {
         e.preventDefault();
@@ -46,9 +52,17 @@ export default function StaffIndex({ staff }: { staff: StaffListItem[] }) {
     };
 
     function openEdit(member: StaffListItem) {
-        editForm.setData('name', member.name);
+        editForm.setData({ name: member.name, email: member.email ?? '', is_admin: member.isAdmin });
         editForm.clearErrors();
         setEditing(member);
+    }
+
+    function invite(member: StaffListItem) {
+        setInvitingId(member.id);
+        router.post(route('staff.invite', member.id), {}, {
+            preserveScroll: true,
+            onFinish: () => setInvitingId(null),
+        });
     }
 
     function confirmDelete() {
@@ -86,6 +100,24 @@ export default function StaffIndex({ staff }: { staff: StaffListItem[] }) {
                                     />
                                     <InputError message={addForm.errors.name} />
                                 </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="add-email">Email <span className="text-neutral-400">(needed for login)</span></Label>
+                                    <Input
+                                        id="add-email"
+                                        type="email"
+                                        value={addForm.data.email}
+                                        onChange={(e) => addForm.setData('email', e.target.value)}
+                                        placeholder="email@example.com"
+                                    />
+                                    <InputError message={addForm.errors.email} />
+                                </div>
+                                <label className="flex items-center gap-2 text-sm">
+                                    <Checkbox
+                                        checked={addForm.data.is_admin}
+                                        onCheckedChange={(c) => addForm.setData('is_admin', c === true)}
+                                    />
+                                    Admin (can manage staff and corporation settings)
+                                </label>
                                 <div className="flex justify-end gap-3 pt-2">
                                     <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
                                         Cancel
@@ -107,8 +139,32 @@ export default function StaffIndex({ staff }: { staff: StaffListItem[] }) {
                     <ul className="divide-y rounded-xl border">
                         {staff.map((member) => (
                             <li key={member.id} className="flex items-center justify-between gap-4 p-4">
-                                <span className="font-medium">{member.name}</span>
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium">{member.name}</span>
+                                        {member.isAdmin && <Badge variant="secondary">Admin</Badge>}
+                                        {member.hasLogin ? (
+                                            <Badge variant="outline">Can log in</Badge>
+                                        ) : (
+                                            member.email && <Badge variant="outline">Invited?</Badge>
+                                        )}
+                                    </div>
+                                    {member.email && (
+                                        <p className="text-sm text-neutral-600 dark:text-neutral-400">{member.email}</p>
+                                    )}
+                                </div>
                                 <div className="flex items-center gap-1">
+                                    {member.email && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                                            disabled={invitingId === member.id}
+                                            onClick={() => invite(member)}
+                                        >
+                                            {member.hasLogin ? 'Resend invite' : 'Invite to log in'}
+                                        </Button>
+                                    )}
                                     <Button
                                         variant="ghost"
                                         size="icon"
@@ -150,6 +206,24 @@ export default function StaffIndex({ staff }: { staff: StaffListItem[] }) {
                                 />
                                 <InputError message={editForm.errors.name} />
                             </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="edit-email">Email <span className="text-neutral-400">(needed for login)</span></Label>
+                                <Input
+                                    id="edit-email"
+                                    type="email"
+                                    value={editForm.data.email}
+                                    onChange={(e) => editForm.setData('email', e.target.value)}
+                                />
+                                <InputError message={editForm.errors.email} />
+                            </div>
+                            <label className="flex items-center gap-2 text-sm">
+                                <Checkbox
+                                    checked={editForm.data.is_admin}
+                                    onCheckedChange={(c) => editForm.setData('is_admin', c === true)}
+                                />
+                                Admin (can manage staff and corporation settings)
+                            </label>
+                            <InputError message={editForm.errors.is_admin} />
                             <div className="flex justify-end gap-3 pt-2">
                                 <Button type="button" variant="outline" onClick={() => setEditing(null)}>
                                     Cancel
@@ -164,7 +238,7 @@ export default function StaffIndex({ staff }: { staff: StaffListItem[] }) {
                     open={deletingId !== null}
                     onOpenChange={(open) => { if (!open) setDeletingId(null); }}
                     title="Delete staff member?"
-                    description="This staff member will be removed."
+                    description="This staff member will be removed, along with their login if they have one."
                     confirmLabel="Delete staff member"
                     onConfirm={confirmDelete}
                     processing={deleting}

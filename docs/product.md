@@ -112,5 +112,96 @@ Out of scope (for now):
   `staff.deleted`. **Decision: availability windows are deferred** — for now a
   staff member is assumed available all the time; slot computation (future
   slice) will treat staff as always free until availability is built.
-- **Next:** rounds, visits/booking, emails (design-doc vocabulary:
-  Round / Visit); staff availability windows when scheduling needs them.
+- **Done:** visits — the typed appointment (survey / progress / handover /
+  warranty, extensible), standalone and admin-managed for now. A visit is
+  always a scheduled appointment (staff + times required at creation); it does
+  not exist in an "unscheduled" state. Owned by a customer (polymorphic seam
+  for future leads), optionally tied to a case, soft-cancelled (`cancelled_at`
+  — stays visible as history, releases its time). Scheduling must go through
+  one sanctioned path (`ScheduleVisit`) that enforces the per-staff
+  no-double-book invariant atomically (lock + overlap check; the loser gets a
+  clean "just taken" error). Case detail page at `/cases/{id}` with new/move/
+  cancel dialogs. Events: `visit.created`, `visit.scheduled`,
+  `visit.cancelled`.
+- **Done:** rounds — the batch-scheduler: opens booking for many visits of
+  one type at once. A round holds visit type, appointment length + buffer,
+  an optional window (date range), a close-off date, and a draft → open →
+  closed lifecycle. It targets an explicit set of cases via a membership
+  table (`round_work_orders`) — **not** pre-created visits, since a visit
+  only exists once booked; a "populate from project" shortcut adds a
+  project's cases point-in-time (re-running skips existing). Opening
+  requires ≥ 1 case; late-adds are allowed while open; editing, removing
+  cases, and deleting are draft-only; closed is read-only. Optional
+  `project_id` files the round under a project (organization only, never
+  membership) so it lists on that project's page. Rounds page at `/rounds`
+  + detail at `/rounds/{id}`. Events: `round.created`, `round.updated`,
+  `round.opened`, `round.closed`, `round.deleted`, `round.cases_added`,
+  `round.case_removed`.
+- **Done:** customer self-booking + magic links — each membership row gets an
+  unguessable 64-char token at attach time; the public page at `/book/{token}`
+  (no account, no login) shows the round's offered slots and the customer
+  books or reschedules one. Booking is what creates the visit (owner =
+  customer, case, `round_id`, type from the round) through `BookVisit` →
+  `ScheduleVisit`, staff resolved at booking time — whoever's free; the
+  no-double-book invariant holds and a race loser gets a clean "just taken"
+  error. Slots = round window ∩ round day-hours − booked, sliced by
+  appointment + buffer (`RoundSlots`); day-hours (default 08–16) are a
+  per-round stopgap until staff availability windows exist, and opening a
+  round now requires a window. Reschedule until close-off (B2); closed/past
+  close-off shows a locked page. Admin sees per-case booking links (copy
+  button) and derived booked state on the round page. No new event types —
+  `visit.created`/`visit.scheduled` with a null actor is the customer acting.
+- **Done:** scheduled round start — a draft round can carry a
+  `scheduled_open_at` instant; a scheduler process (`schedule:work`
+  container in dev and prod Compose profiles) runs `app:open-due-rounds`
+  every minute and opens due rounds with the same invariants as a manual
+  open (≥ 1 case + window). A due-but-invalid round is skipped with its
+  schedule kept, so it opens as soon as it becomes valid (the round page
+  shows the pending schedule and a waiting hint). Manual open overrides —
+  it clears the schedule. `round.opened` carries `trigger:
+  scheduled|manual`; the emails slice will subscribe to it, making the
+  scheduled open the "send invites at this time" mechanism (SO1). Late-adds
+  while open were already supported (SO5).
+- **Done:** emails/sendouts — the event → outbox → Mailable path is live.
+  Every state change records an event; a listener turns the relevant ones
+  into durable `outbox_messages`; `app:send-outbox` (scheduled every minute)
+  drains them through Mailpit in dev/test. Four emails (E1): booking invite
+  (the magic link, one per round membership), booking confirmation, an
+  appointment-change notice when an admin moves a scheduled visit, and a
+  cancellation. Opening a round emails the invite to every recipient not yet
+  sent — the manual-open dialog previews the count (SO3); a fresh
+  admin-created visit also confirms, but carries a manage link only when the
+  visit belongs to a round (self-management is round-only). Per-recipient
+  invite status (not sent / sent / failed, SO4) shows on the round page with
+  a per-case Send/Resend (SO2/SO5); late-adds are never auto-emailed. A visit
+  can be linked to a round it's a member of (visit dialogs), which is what
+  gives its confirmation a manage link; a round holds at most one active
+  visit per case. Bulk mass-send and delivered/opened tracking beyond this
+  stay out (SO4/SO6, campaigns).
+- **Done:** admin-UX polish — customers carry an optional address and have a
+  detail page listing their cases (with edit); cases gained an optional title
+  (shown in lists when set) and notes, an edit dialog, a link to their
+  customer, and address that prefills from the customer on creation. Projects
+  and rounds now both **attach existing** cases (created on the Cases page)
+  rather than creating them; the project list count reads "cases"; the rounds
+  list has Draft / Open / Closed tabs and the round page shows a details grid.
+- **Done:** admin schedule view — a week calendar on the dashboard (Mon–Sun,
+  hour rows expanding to fit outliers, Prev/Today/Next). Visits render as
+  blocks colored per staff member (legend when more than one); overlapping
+  visits share the column side by side. Clicking an empty slot opens the
+  New-visit dialog prefilled with that hour; clicking a block opens the Move
+  dialog, which also gained a Cancel-visit action. No new endpoints — the
+  calendar reuses the existing visit create/update/cancel paths, so the
+  no-double-book invariant stays in `ScheduleVisit`. The New/Move dialogs are
+  extracted into shared components used by both the dashboard and the Visits
+  page. When availability windows arrive, this calendar is where they render.
+- **Done:** detail-page polish — the case page shows its attributes in the
+  same details grid the round page uses (shared `DetailsGrid` component);
+  visits gained their own detail page at `/visits/{id}` (type, staff, times,
+  status, plus links to the case, customer, and round they're tied to) linked
+  from every visit list row; the visit dialog is "Edit visit" everywhere
+  (was "Move visit"), and the case page now reuses the shared edit dialog
+  instead of its own inline copy.
+- **Next:** staff availability windows — real per-staff bookable time so
+  slot computation stops assuming staff are always free and the per-round
+  day-hours stopgap can retire.

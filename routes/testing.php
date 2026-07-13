@@ -22,6 +22,12 @@ Route::post('_test/reset', function () {
     return response()->noContent();
 });
 
+Route::post('_test/drain-outbox', function () {
+    Artisan::call('app:send-outbox');
+
+    return response()->noContent();
+});
+
 Route::post('_test/seed', function (Request $request) {
     $validated = $request->validate([
         'corporation' => ['required', 'string', 'max:255'],
@@ -39,8 +45,14 @@ Route::post('_test/seed', function (Request $request) {
         'password' => $validated['password'],
     ]);
 
-    // S2: a corporation always has at least one staff member — the founder.
-    $staff = $corporation->staff()->create(['name' => $validated['name']]);
+    // S2: a corporation always has at least one staff member — the founder,
+    // who is the admin and can log in (so the E2E user sees admin surfaces).
+    $staff = $corporation->staff()->create([
+        'user_id' => $user->id,
+        'name' => $validated['name'],
+        'email' => $validated['email'],
+        'is_admin' => true,
+    ]);
 
     return response()->json([
         'corporation_id' => $corporation->id,

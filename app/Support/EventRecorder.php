@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Events\DomainEventRecorded;
 use App\Models\Corporation;
 use App\Models\Event;
 use Illuminate\Database\Eloquent\Model;
@@ -26,7 +27,7 @@ class EventRecorder
     ): Event {
         $actor ??= Auth::user();
 
-        return Event::create([
+        $event = Event::create([
             'corporation_id' => $corporation->id,
             'type' => $type,
             'actor_type' => $actor?->getMorphClass(),
@@ -35,5 +36,9 @@ class EventRecorder
             'subject_id' => $subject?->getKey(),
             'payload' => $payload !== [] ? $payload : null,
         ]);
+
+        DomainEventRecorded::dispatch($event);
+
+        return $event;
     }
 }

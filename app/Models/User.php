@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -26,11 +27,43 @@ class User extends Authenticatable
     ];
 
     /**
+     * Expose the admin flag to the frontend (sidebar gating) without leaking
+     * the whole staff row.
+     *
+     * @var list<string>
+     */
+    protected $appends = [
+        'is_admin',
+    ];
+
+    /**
      * Get the corporation the user belongs to.
      */
     public function corporation(): BelongsTo
     {
         return $this->belongsTo(Corporation::class);
+    }
+
+    /**
+     * The staff member this login belongs to (the admin flag lives there).
+     */
+    public function staff(): HasOne
+    {
+        return $this->hasOne(Staff::class);
+    }
+
+    /**
+     * Whether this login may manage staff and corporation settings. Reads the
+     * admin flag off the linked staff member.
+     */
+    public function isAdmin(): bool
+    {
+        return (bool) $this->staff?->is_admin;
+    }
+
+    public function getIsAdminAttribute(): bool
+    {
+        return $this->isAdmin();
     }
 
     /**

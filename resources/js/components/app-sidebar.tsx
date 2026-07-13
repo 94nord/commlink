@@ -2,12 +2,12 @@ import { NavFooter } from '@/components/nav-footer';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
-import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/react';
-import { BookOpen, ClipboardList, Folder, FolderKanban, LayoutGrid, UserCog, Users } from 'lucide-react';
+import { type NavItem, type SharedData } from '@/types';
+import { Link, usePage } from '@inertiajs/react';
+import { Building2, BookOpen, Calendar, CalendarRange, ClipboardList, Folder, FolderKanban, LayoutGrid, UserCog, Users } from 'lucide-react';
 import AppLogo from './app-logo';
 
-const mainNavItems: NavItem[] = [
+const baseNavItems: NavItem[] = [
     {
         title: 'Dashboard',
         url: '/dashboard',
@@ -24,14 +24,33 @@ const mainNavItems: NavItem[] = [
         icon: ClipboardList,
     },
     {
+        title: 'Visits',
+        url: '/visits',
+        icon: Calendar,
+    },
+    {
+        title: 'Rounds',
+        url: '/rounds',
+        icon: CalendarRange,
+    },
+    {
         title: 'Customers',
         url: '/customers',
         icon: Users,
     },
+];
+
+// Admin-only: managing staff and corporation settings.
+const adminNavItems: NavItem[] = [
     {
         title: 'Staff',
         url: '/staff',
         icon: UserCog,
+    },
+    {
+        title: 'Corporation',
+        url: '/corporation',
+        icon: Building2,
     },
 ];
 
@@ -49,13 +68,16 @@ const footerNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
+    const { auth } = usePage<SharedData>().props;
+    const mainNavItems = auth.user.is_admin ? [...baseNavItems, ...adminNavItems] : baseNavItems;
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href="/dashboard" prefetch>
+                            <Link href="/dashboard">
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>

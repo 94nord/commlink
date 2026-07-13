@@ -17,7 +17,9 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 interface CaseListItem {
     id: number;
+    title: string | null;
     address: string;
+    customerId: number;
     customerName: string;
     customerEmail: string;
     projectId: number | null;
@@ -28,6 +30,7 @@ interface CustomerOption {
     id: number;
     name: string;
     email: string;
+    address: string | null;
 }
 
 interface ProjectOption {
@@ -48,7 +51,15 @@ export default function CasesIndex({
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [deleting, setDeleting] = useState(false);
 
-    const form = useForm({ customer_id: '', address: '', project_id: '' });
+    const form = useForm({ customer_id: '', title: '', address: '', notes: '', project_id: '' });
+
+    // Picking a customer prefills the case address from their default one
+    // (still editable). Also sets customer_id in the same update to avoid a
+    // stale-closure race between two setData calls.
+    function pickCustomer(value: string) {
+        const customer = customers.find((c) => String(c.id) === value);
+        form.setData({ ...form.data, customer_id: value, address: customer?.address ?? form.data.address });
+    }
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -86,7 +97,7 @@ export default function CasesIndex({
                                     <Label htmlFor="customer_id">Customer</Label>
                                     <Select
                                         value={form.data.customer_id}
-                                        onValueChange={(v) => form.setData('customer_id', v)}
+                                        onValueChange={pickCustomer}
                                     >
                                         <SelectTrigger id="customer_id">
                                             <SelectValue placeholder="Select a customer…" />
@@ -103,6 +114,17 @@ export default function CasesIndex({
                                 </div>
 
                                 <div className="grid gap-2">
+                                    <Label htmlFor="title">Title <span className="text-neutral-400">(optional)</span></Label>
+                                    <Input
+                                        id="title"
+                                        value={form.data.title}
+                                        onChange={(e) => form.setData('title', e.target.value)}
+                                        placeholder="e.g. Apartment 3B"
+                                    />
+                                    <InputError message={form.errors.title} />
+                                </div>
+
+                                <div className="grid gap-2">
                                     <Label htmlFor="address">Address</Label>
                                     <Input
                                         id="address"
@@ -111,6 +133,18 @@ export default function CasesIndex({
                                         placeholder="Street, floor, door"
                                     />
                                     <InputError message={form.errors.address} />
+                                </div>
+
+                                <div className="grid gap-2">
+                                    <Label htmlFor="notes">Notes <span className="text-neutral-400">(optional)</span></Label>
+                                    <textarea
+                                        id="notes"
+                                        value={form.data.notes}
+                                        onChange={(e) => form.setData('notes', e.target.value)}
+                                        rows={3}
+                                        className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                    />
+                                    <InputError message={form.errors.notes} />
                                 </div>
 
                                 <div className="grid gap-2">
@@ -158,9 +192,14 @@ export default function CasesIndex({
                         {cases.map((c) => (
                             <li key={c.id} className="flex items-center justify-between gap-4 p-4">
                                 <div className="min-w-0 flex-1">
-                                    <p className="font-medium">{c.address}</p>
+                                    <Link href={route('cases.show', c.id)}>
+                                        <p className="font-medium hover:underline">{c.title ?? c.address}</p>
+                                    </Link>
                                     <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                                        {c.customerName} · {c.customerEmail}
+                                        {c.title ? `${c.address} · ` : ''}
+                                        <Link href={route('customers.show', c.customerId)} className="hover:underline">
+                                            {c.customerName}
+                                        </Link>
                                     </p>
                                 </div>
                                 <span className="shrink-0 text-sm text-neutral-600 dark:text-neutral-400">

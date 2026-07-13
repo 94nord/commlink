@@ -6,6 +6,8 @@ use App\Models\Concerns\HasExternalReference;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -28,7 +30,9 @@ class WorkOrder extends Model
         'corporation_id',
         'customer_id',
         'project_id',
+        'title',
         'address',
+        'notes',
         'external_ref',
     ];
 
@@ -45,5 +49,18 @@ class WorkOrder extends Model
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);
+    }
+
+    public function visits(): HasMany
+    {
+        return $this->hasMany(Visit::class);
+    }
+
+    public function rounds(): BelongsToMany
+    {
+        return $this->belongsToMany(Round::class, 'round_work_orders')
+            ->using(RoundWorkOrder::class)
+            ->withPivot('id', 'token')
+            ->withTimestamps();
     }
 }

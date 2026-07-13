@@ -39,6 +39,7 @@ Compose profiles in `docker-compose.yml`:
 | Vite HMR             | 5173                | —               |
 | PostgreSQL           | 5432                | 5433            |
 | MinIO API / console  | 9000 / 9001         | —               |
+| Mailpit UI / API     | 8025                | 9025 (API)      |
 
 Dev and test stacks run concurrently. The test stack fresh-migrates an empty
 database on every boot (`docker/entrypoint-test.sh`); prod caches
@@ -61,13 +62,19 @@ config/routes/views (`docker/entrypoint-prod.sh`).
   Party). Visits and work orders reference `customer_id`, never an email
   column — resolution is always `Customer::findByEmail()` → customer →
   interactions, so contact identities can move to their own table later
-  without touching any relationship.
+  without touching any relationship. Customers are created/edited on the
+  Customers page (name, email, optional `address`) with a detail page
+  listing their cases.
 - WorkOrder implements the spec's **Case** (`case` is a PHP reserved word;
   table `work_orders` because `jobs` belongs to Laravel's queue): one
-  apartment/matter, required `customer_id`, plain `address`, nullable
-  `project_id`. `AddCustomerToProject` is the one path that registers a
-  customer: resolve-or-create by email, then create the work order. Tenant
-  scoping in controllers: resolve models through
+  apartment/matter, required `customer_id`, plain `address`, optional
+  `title` (shown in lists when set) + `notes`, nullable `project_id`. Cases
+  are created and edited on the Cases page (the new-case address prefills
+  from the customer's address, still editable); projects and rounds
+  **attach existing** cases rather than creating them
+  (`ProjectWorkOrderController` sets/clears `project_id`;
+  `RoundWorkOrderController` manages membership). Tenant scoping in
+  controllers: resolve models through
   `$request->user()->corporation->…()->findOrFail()`, never bare bindings.
 
 ## Testing
@@ -86,6 +93,10 @@ config/routes/views (`docker/entrypoint-prod.sh`).
 
 - No hardcoded secrets anywhere — env vars or runtime generation only;
   `.env.example` documents every variable with safe placeholders.
+- **Never put `prefetch` on Inertia `<Link>`s.** Hover-prefetch races the
+  click into two concurrent visits; the late response remounts the page and
+  wipes local state (open dialogs close). Verified still broken on
+  @inertiajs/react 2.3.27 (2026-07); all `prefetch` props were removed then.
 - PostgreSQL in every environment; SQLite only inside PHPUnit.
 - Same Dockerfile for all environments; differences live in Compose profiles,
   entrypoints, and mounts — never forked Dockerfiles.
@@ -99,7 +110,25 @@ config/routes/views (`docker/entrypoint-prod.sh`).
   `WorkOrder` (PHP reserves `case`) · Staff → `Staff` (built; availability
   windows deferred — staff are assumed always available for now, S2 invariant
   enforced: founder provisioned at creation, last member undeletable) ·
-  Visit / Round → not built yet.
+  Visit → `Visit` (built; standalone admin-managed, polymorphic owner,
+  always scheduled — staff + times required at creation, no unscheduled state;
+  soft-cancel via `cancelled_at`; occupy staff time ONLY through
+  `App\Actions\ScheduleVisit` — it holds the per-staff no-double-book
+  invariant) · Round → `Round` (built; membership is the `round_work_orders`
+  table, NOT pre-created visits — a visit only exists once booked; draft →
+  open → closed lifecycle, open needs ≥ 1 case AND a window, edit/remove/
+  delete draft-only, late-adds while open; nullable `round.project_id` is SO8
+  organizational belonging, never membership). Self-booking (built): magic
+  link token on the membership row (`RoundWorkOrder` pivot model), public
+  `/book/{token}` page; booking creates the visit via `App\Actions\BookVisit`
+  → `ScheduleVisit` with `round_id` set and staff resolved at booking time;
+  slot grid = window ∩ per-round day-hours − booked (`App\Support\RoundSlots`
+  — day-hours are a stopgap until staff availability windows). Scheduled
+  start (built): `rounds.scheduled_open_at` + `app:open-due-rounds` run
+  every minute by `schedule:work` containers (`scheduler-dev`/`scheduler`
+  Compose services); due-but-invalid rounds are skipped with the schedule
+  kept; manual open clears the schedule; `round.opened` payload carries
+  `trigger: scheduled|manual`.
   Where claude-code-prompts.md still says party/job/booking/resource/sendout
   (its Phase 1 predates the doc's Staff/Round/Visit reframe), the design doc
   wins.
@@ -118,7 +147,13 @@ DESIGN DIRECTION
 DEV/TEST WORKFLOW
 - Each slice includes a minimal FE so it's testable
   end-to-end, not backend-only.
-- Mail goes through the event -> outbox -> Mailable path (provider-swappable). In dev/test the
-  transport is Mailpit (in Docker) so nothing leaves the machine; a real provider is a prod-only
-  config swap. PHPUnit uses Mail::fake(); Playwright asserts against Mailpit's HTTP API.
+- Mail goes through the event -> outbox -> Mailable path (provider-swappable), now BUILT:
+  `EventRecorder` dispatches `DomainEventRecorded`; `QueueOutboxEmails` (auto-discovered listener)
+  maps spine events to `outbox_messages` rows; `app:send-outbox` (scheduled every minute,
+  `withoutOverlapping`) drains them through the four Mailables (invite/booked/changed/cancelled).
+  Send sites never touch mail directly — they only record events. In dev/test the transport is
+  Mailpit (Docker) so nothing leaves the machine; a real provider is a prod-only config swap.
+  PHPUnit uses Mail::fake(); Playwright drains via `POST _test/drain-outbox` then asserts against
+  Mailpit's HTTP API. Per-recipient invite status (SO4) lives on `round_work_orders`
+  (`invite_sent_at`/`invite_failed_at`); booked/cancelled stay derived from visits.
 

@@ -72,7 +72,7 @@ export default function ProjectsIndex({ projects }: { projects: ProjectListItem[
 
                 {projects.length === 0 ? (
                     <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                        No projects yet. Create one to start registering apartments.
+                        No projects yet. Create one to start grouping cases.
                     </p>
                 ) : (
                     <ul className="divide-y rounded-xl border">
@@ -80,12 +80,12 @@ export default function ProjectsIndex({ projects }: { projects: ProjectListItem[
                             <li key={project.id}>
                                 <Link
                                     href={route('projects.show', project.id)}
-                                    prefetch
+                                   
                                     className="flex items-center justify-between p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900"
                                 >
                                     <span className="font-medium">{project.name}</span>
                                     <span className="text-sm text-neutral-600 dark:text-neutral-400">
-                                        {project.workOrderCount} {project.workOrderCount === 1 ? 'apartment' : 'apartments'}
+                                        {project.workOrderCount} {project.workOrderCount === 1 ? 'case' : 'cases'}
                                     </span>
                                 </Link>
                             </li>

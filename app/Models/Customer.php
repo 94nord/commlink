@@ -36,6 +36,7 @@ class Customer extends Model
         'kind',
         'name',
         'email',
+        'address',
         'external_ref',
     ];
 

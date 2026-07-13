@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEventHandler, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -16,7 +16,7 @@ interface CustomerListItem {
     id: number;
     name: string;
     email: string;
-    workOrderCount: number;
+    address: string | null;
 }
 
 export default function CustomersIndex({ customers }: { customers: CustomerListItem[] }) {
@@ -25,6 +25,7 @@ export default function CustomersIndex({ customers }: { customers: CustomerListI
     const { data, setData, post, errors, processing, reset } = useForm({
         name: '',
         email: '',
+        address: '',
     });
 
     const submit: FormEventHandler = (e) => {
@@ -78,6 +79,17 @@ export default function CustomersIndex({ customers }: { customers: CustomerListI
                                     <InputError message={errors.email} />
                                 </div>
 
+                                <div className="grid gap-2">
+                                    <Label htmlFor="address">Address <span className="text-neutral-400">(optional)</span></Label>
+                                    <Input
+                                        id="address"
+                                        value={data.address}
+                                        onChange={(e) => setData('address', e.target.value)}
+                                        placeholder="Street, floor, door"
+                                    />
+                                    <InputError message={errors.address} />
+                                </div>
+
                                 <div className="flex justify-end gap-3 pt-2">
                                     <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                                         Cancel
@@ -91,19 +103,22 @@ export default function CustomersIndex({ customers }: { customers: CustomerListI
 
                 {customers.length === 0 ? (
                     <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                        No customers yet. Add one to start registering apartments.
+                        No customers yet. Add one to start registering cases.
                     </p>
                 ) : (
                     <ul className="divide-y rounded-xl border">
                         {customers.map((customer) => (
-                            <li key={customer.id} className="flex items-center justify-between p-4">
-                                <div>
+                            <li key={customer.id}>
+                                <Link
+                                    href={route('customers.show', customer.id)}
+                                   
+                                    className="block p-4 hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                                >
                                     <p className="font-medium">{customer.name}</p>
-                                    <p className="text-sm text-neutral-600 dark:text-neutral-400">{customer.email}</p>
-                                </div>
-                                <span className="text-sm text-neutral-600 dark:text-neutral-400">
-                                    {customer.workOrderCount} {customer.workOrderCount === 1 ? 'apartment' : 'apartments'}
-                                </span>
+                                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                                        {customer.email}{customer.address ? ` · ${customer.address}` : ''}
+                                    </p>
+                                </Link>
                             </li>
                         ))}
                     </ul>

@@ -23,6 +23,7 @@ class CustomerFactory extends Factory
             'kind' => CustomerKind::Person,
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
+            'address' => fake()->streetAddress(),
         ];
     }
 

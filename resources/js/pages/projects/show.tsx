@@ -1,10 +1,11 @@
 import ConfirmDialog from '@/components/confirm-dialog';
 import InputError from '@/components/input-error';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, router, useForm } from '@inertiajs/react';
@@ -18,25 +19,43 @@ interface ProjectDetail {
 
 interface WorkOrderListItem {
     id: number;
+    title: string | null;
     address: string;
     customerName: string;
     customerEmail: string;
 }
 
-interface CustomerOption {
+interface AddableCase {
     id: number;
-    name: string;
-    email: string;
+    title: string | null;
+    address: string;
+    customerName: string;
+}
+
+interface RoundListItem {
+    id: number;
+    type: string;
+    status: 'draft' | 'open' | 'closed';
+    closeOffOn: string;
+    caseCount: number;
+}
+
+const roundStatusVariant = { draft: 'outline', open: 'default', closed: 'secondary' } as const;
+
+function roundTypeLabel(value: string) {
+    return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 export default function ProjectsShow({
     project,
     workOrders,
-    customers,
+    addableCases,
+    rounds,
 }: {
     project: ProjectDetail;
     workOrders: WorkOrderListItem[];
-    customers: CustomerOption[];
+    addableCases: AddableCase[];
+    rounds: RoundListItem[];
 }) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Projects', href: '/projects' },
@@ -46,18 +65,12 @@ export default function ProjectsShow({
     const [addOpen, setAddOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
     const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
-    const [deletingCaseId, setDeletingCaseId] = useState<number | null>(null);
-    const [deleting, setDeleting] = useState(false);
+    const [removingCaseId, setRemovingCaseId] = useState<number | null>(null);
+    const [processing, setProcessing] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [addingCases, setAddingCases] = useState(false);
 
-    const addForm = useForm({ customer_id: '', address: '' });
     const editForm = useForm({ name: project.name });
-
-    const submitAdd: FormEventHandler = (e) => {
-        e.preventDefault();
-        addForm.post(route('projects.work-orders.store', project.id), {
-            onSuccess: () => { addForm.reset(); setAddOpen(false); },
-        });
-    };
 
     const submitEdit: FormEventHandler = (e) => {
         e.preventDefault();
@@ -66,21 +79,31 @@ export default function ProjectsShow({
         });
     };
 
-    function confirmDeleteCase() {
-        if (!deletingCaseId) return;
-        setDeleting(true);
-        router.delete(route('work-orders.destroy', deletingCaseId), {
-            onFinish: () => {
-                setDeleting(false);
-                setDeletingCaseId(null);
-            },
+    function toggleCase(id: number, checked: boolean) {
+        setSelectedIds((prev) => (checked ? [...prev, id] : prev.filter((x) => x !== id)));
+    }
+
+    function submitAddCases() {
+        if (selectedIds.length === 0) return;
+        setAddingCases(true);
+        router.post(route('projects.work-orders.store', project.id), { work_order_ids: selectedIds }, {
+            onSuccess: () => { setSelectedIds([]); setAddOpen(false); },
+            onFinish: () => setAddingCases(false),
+        });
+    }
+
+    function confirmRemoveCase() {
+        if (!removingCaseId) return;
+        setProcessing(true);
+        router.delete(route('projects.work-orders.destroy', [project.id, removingCaseId]), {
+            onFinish: () => { setProcessing(false); setRemovingCaseId(null); },
         });
     }
 
     function confirmDeleteProject() {
-        setDeleting(true);
+        setProcessing(true);
         router.delete(route('projects.destroy', project.id), {
-            onFinish: () => setDeleting(false),
+            onFinish: () => setProcessing(false),
         });
     }
 
@@ -139,112 +162,117 @@ export default function ProjectsShow({
                         open={deleteProjectOpen}
                         onOpenChange={setDeleteProjectOpen}
                         title="Delete project?"
-                        description="The project will be removed. Its cases will be kept as standalone cases."
+                        description="The project will be removed. Its cases are kept as standalone cases."
                         confirmLabel="Delete project"
                         onConfirm={confirmDeleteProject}
-                        processing={deleting}
+                        processing={processing}
                     />
 
-                    {/* Add case */}
+                    {/* Add existing cases */}
                     <div className="ml-auto">
-                        <Dialog open={addOpen} onOpenChange={(next) => { setAddOpen(next); if (!next) addForm.reset(); }}>
+                        <Dialog open={addOpen} onOpenChange={(next) => { setAddOpen(next); if (!next) setSelectedIds([]); }}>
                             <DialogTrigger asChild>
-                                <Button disabled={customers.length === 0}>Add case</Button>
+                                <Button disabled={addableCases.length === 0}>Add cases</Button>
                             </DialogTrigger>
                             <DialogContent>
                                 <DialogHeader>
-                                    <DialogTitle>Add case</DialogTitle>
+                                    <DialogTitle>Add cases</DialogTitle>
                                 </DialogHeader>
-
-                                {customers.length === 0 ? (
+                                <div className="space-y-4">
                                     <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                                        No customers yet.{' '}
-                                        <Link href={route('customers.index')} className="underline">
-                                            Add a customer
-                                        </Link>{' '}
-                                        first.
+                                        Only standalone cases (not already in a project) are shown. Create new cases on the{' '}
+                                        <Link href={route('cases.index')} className="underline">Cases</Link> page.
                                     </p>
-                                ) : (
-                                    <form onSubmit={submitAdd} className="space-y-4">
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="customer_id">Customer</Label>
-                                            <Select
-                                                value={addForm.data.customer_id}
-                                                onValueChange={(value) => addForm.setData('customer_id', value)}
-                                            >
-                                                <SelectTrigger id="customer_id">
-                                                    <SelectValue placeholder="Select a customer…" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {customers.map((customer) => (
-                                                        <SelectItem key={customer.id} value={String(customer.id)}>
-                                                            {customer.name} — {customer.email}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <InputError message={addForm.errors.customer_id} />
-                                        </div>
-
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="address">Address</Label>
-                                            <Input
-                                                id="address"
-                                                value={addForm.data.address}
-                                                onChange={(e) => addForm.setData('address', e.target.value)}
-                                                placeholder="Street, floor, door"
-                                            />
-                                            <InputError message={addForm.errors.address} />
-                                        </div>
-
-                                        <div className="flex justify-end gap-3 pt-2">
-                                            <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
-                                                Cancel
-                                            </Button>
-                                            <Button disabled={addForm.processing}>Add case</Button>
-                                        </div>
-                                    </form>
-                                )}
+                                    <ul className="max-h-64 divide-y overflow-y-auto rounded-xl border">
+                                        {addableCases.map((c) => (
+                                            <li key={c.id} className="flex items-center gap-3 p-3">
+                                                <Checkbox
+                                                    id={`case-${c.id}`}
+                                                    checked={selectedIds.includes(c.id)}
+                                                    onCheckedChange={(checked) => toggleCase(c.id, checked === true)}
+                                                />
+                                                <label htmlFor={`case-${c.id}`} className="min-w-0 flex-1 cursor-pointer">
+                                                    <p className="text-sm font-medium">{c.title ?? c.address}</p>
+                                                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                                                        {c.title ? `${c.address} · ` : ''}{c.customerName}
+                                                    </p>
+                                                </label>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                    <div className="flex justify-end gap-3 pt-2">
+                                        <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
+                                            Cancel
+                                        </Button>
+                                        <Button onClick={submitAddCases} disabled={addingCases || selectedIds.length === 0}>
+                                            Add {selectedIds.length > 0 ? selectedIds.length : ''} {selectedIds.length === 1 ? 'case' : 'cases'}
+                                        </Button>
+                                    </div>
+                                </div>
                             </DialogContent>
                         </Dialog>
                     </div>
                 </div>
 
                 {workOrders.length === 0 ? (
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">No cases registered yet.</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">No cases in this project yet.</p>
                 ) : (
                     <ul className="divide-y rounded-xl border">
                         {workOrders.map((workOrder) => (
                             <li key={workOrder.id} className="flex items-center justify-between gap-4 p-4">
-                                <div className="min-w-0 flex-1">
-                                    <p className="font-medium">{workOrder.address}</p>
+                                <Link href={route('cases.show', workOrder.id)} className="min-w-0 flex-1">
+                                    <p className="font-medium hover:underline">{workOrder.title ?? workOrder.address}</p>
                                     <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                                        {workOrder.customerName} · {workOrder.customerEmail}
+                                        {workOrder.title ? `${workOrder.address} · ` : ''}{workOrder.customerName} · {workOrder.customerEmail}
                                     </p>
-                                </div>
+                                </Link>
                                 <Button
                                     variant="ghost"
                                     size="icon"
                                     className="shrink-0 text-neutral-400 hover:text-red-600"
-                                    onClick={() => setDeletingCaseId(workOrder.id)}
+                                    onClick={() => setRemovingCaseId(workOrder.id)}
                                 >
                                     <Trash2 className="h-4 w-4" />
-                                    <span className="sr-only">Delete case</span>
+                                    <span className="sr-only">Remove from project</span>
                                 </Button>
                             </li>
                         ))}
                     </ul>
                 )}
 
-                {/* Case delete confirmation */}
+                {rounds.length > 0 && (
+                    <section className="space-y-3">
+                        <h2 className="font-medium">Rounds</h2>
+                        <ul className="divide-y rounded-xl border">
+                            {rounds.map((round) => (
+                                <li key={round.id} className="flex items-center justify-between gap-4 p-4">
+                                    <Link href={route('rounds.show', round.id)} className="min-w-0 flex-1">
+                                        <p className="font-medium hover:underline">
+                                            {roundTypeLabel(round.type)} round · closes{' '}
+                                            {new Date(round.closeOffOn).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        </p>
+                                        <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                                            {round.caseCount} {round.caseCount === 1 ? 'case' : 'cases'}
+                                        </p>
+                                    </Link>
+                                    <Badge variant={roundStatusVariant[round.status]} className="capitalize">
+                                        {round.status}
+                                    </Badge>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
+
+                {/* Remove-from-project confirmation */}
                 <ConfirmDialog
-                    open={deletingCaseId !== null}
-                    onOpenChange={(open) => { if (!open) setDeletingCaseId(null); }}
-                    title="Delete case?"
-                    description="This case will be permanently removed."
-                    confirmLabel="Delete case"
-                    onConfirm={confirmDeleteCase}
-                    processing={deleting}
+                    open={removingCaseId !== null}
+                    onOpenChange={(open) => { if (!open) setRemovingCaseId(null); }}
+                    title="Remove case from project?"
+                    description="The case itself is kept — it just leaves this project."
+                    confirmLabel="Remove case"
+                    onConfirm={confirmRemoveCase}
+                    processing={processing}
                 />
             </div>
         </AppLayout>

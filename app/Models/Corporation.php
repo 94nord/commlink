@@ -18,6 +18,7 @@ class Corporation extends Model
      */
     protected $fillable = [
         'name',
+        'logo_path',
     ];
 
     /**
@@ -58,5 +59,21 @@ class Corporation extends Model
     public function staff(): HasMany
     {
         return $this->hasMany(Staff::class);
+    }
+
+    /**
+     * Get the visits belonging to the corporation.
+     */
+    public function visits(): HasMany
+    {
+        return $this->hasMany(Visit::class);
+    }
+
+    /**
+     * Get the rounds belonging to the corporation.
+     */
+    public function rounds(): HasMany
+    {
+        return $this->hasMany(Round::class);
     }
 }
