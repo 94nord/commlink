@@ -26,30 +26,29 @@ class AdminAccessTest extends TestCase
     {
         $user = $this->nonAdmin();
 
-        $this->actingAs($user)->get('/staff')->assertForbidden();
-        $this->actingAs($user)->get('/corporation')->assertForbidden();
-        $this->actingAs($user)->post('/staff', ['name' => 'X'])->assertForbidden();
-        $this->actingAs($user)->patch('/corporation', ['name' => 'X'])->assertForbidden();
+        $this->actingAs($user)->getJson('/api/staff')->assertForbidden();
+        $this->actingAs($user)->getJson('/api/corporation')->assertForbidden();
+        $this->actingAs($user)->postJson('/api/staff', ['name' => 'X'])->assertForbidden();
     }
 
     public function test_an_admin_can_reach_staff_and_corporation()
     {
         $user = User::factory()->admin()->create();
 
-        $this->actingAs($user)->get('/staff')->assertOk();
-        $this->actingAs($user)->get('/corporation')->assertOk();
+        $this->actingAs($user)->getJson('/api/staff')->assertOk();
+        $this->actingAs($user)->getJson('/api/corporation')->assertOk();
     }
 
-    public function test_the_is_admin_flag_is_shared_to_the_frontend()
+    public function test_the_is_admin_flag_is_shared_via_the_user_endpoint()
     {
         $admin = User::factory()->admin()->create();
         $this->actingAs($admin)
-            ->get('/dashboard')
-            ->assertInertia(fn ($page) => $page->where('auth.user.is_admin', true));
+            ->getJson('/api/user')
+            ->assertJsonPath('is_admin', true);
 
         $member = $this->nonAdmin();
         $this->actingAs($member)
-            ->get('/dashboard')
-            ->assertInertia(fn ($page) => $page->where('auth.user.is_admin', false));
+            ->getJson('/api/user')
+            ->assertJsonPath('is_admin', false);
     }
 }

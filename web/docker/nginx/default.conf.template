@@ -1,0 +1,12 @@
+# Static SPA server: every unknown path falls back to index.html so
+# react-router's client-side routes (history mode) resolve correctly.
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

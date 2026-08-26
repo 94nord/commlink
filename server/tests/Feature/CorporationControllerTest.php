@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\Event;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -13,30 +12,31 @@ class CorporationControllerTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_edit_renders_the_settings_page()
+    public function test_edit_returns_the_corporation()
     {
         $user = User::factory()->admin()->create();
 
         $this->actingAs($user)
-            ->get('/corporation')
+            ->getJson('/api/corporation')
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
-                ->component('corporation/edit')
-                ->where('corporation.name', $user->corporation->name)
-                ->where('corporation.hasLogo', false)
-            );
+            ->assertJson([
+                'corporation' => [
+                    'name' => $user->corporation->name,
+                    'hasLogo' => false,
+                ],
+            ]);
     }
 
-    public function test_update_changes_the_name_and_records_an_event()
+    public function test_there_is_no_route_to_change_the_name()
     {
         $user = User::factory()->admin()->create();
+        $originalName = $user->corporation->name;
 
-        $this->actingAs($user)->patch('/corporation', [
+        $this->actingAs($user)->patchJson('/api/corporation', [
             'name' => 'Renamed Co',
-        ])->assertRedirect()->assertSessionHasNoErrors();
+        ])->assertStatus(405);
 
-        $this->assertSame('Renamed Co', $user->corporation->fresh()->name);
-        $this->assertNotNull(Event::where('type', 'corporation.updated')->first());
+        $this->assertSame($originalName, $user->corporation->fresh()->name);
     }
 
     public function test_a_logo_can_be_uploaded_and_streamed()
@@ -44,15 +44,15 @@ class CorporationControllerTest extends TestCase
         Storage::fake();
         $user = User::factory()->admin()->create();
 
-        $this->actingAs($user)->post('/corporation/logo', [
+        $this->actingAs($user)->postJson('/api/corporation/logo', [
             'logo' => UploadedFile::fake()->image('logo.png', 200, 200),
-        ])->assertRedirect()->assertSessionHasNoErrors();
+        ])->assertOk();
 
         $corporation = $user->corporation->fresh();
         $this->assertNotNull($corporation->logo_path);
         Storage::assertExists($corporation->logo_path);
 
-        $this->actingAs($user)->get('/corporation/logo')->assertOk();
+        $this->actingAs($user)->get('/api/corporation/logo')->assertOk();
     }
 
     public function test_a_non_image_upload_is_rejected()
@@ -60,9 +60,9 @@ class CorporationControllerTest extends TestCase
         Storage::fake();
         $user = User::factory()->admin()->create();
 
-        $this->actingAs($user)->post('/corporation/logo', [
+        $this->actingAs($user)->postJson('/api/corporation/logo', [
             'logo' => UploadedFile::fake()->create('notes.pdf', 10, 'application/pdf'),
-        ])->assertSessionHasErrors('logo');
+        ])->assertJsonValidationErrors('logo');
 
         $this->assertNull($user->corporation->fresh()->logo_path);
     }
@@ -72,19 +72,19 @@ class CorporationControllerTest extends TestCase
         Storage::fake();
         $user = User::factory()->admin()->create();
 
-        $this->actingAs($user)->post('/corporation/logo', [
+        $this->actingAs($user)->postJson('/api/corporation/logo', [
             'logo' => UploadedFile::fake()->image('logo.png'),
         ]);
         $path = $user->corporation->fresh()->logo_path;
 
-        $this->actingAs($user)->delete('/corporation/logo')->assertRedirect();
+        $this->actingAs($user)->deleteJson('/api/corporation/logo')->assertNoContent();
 
         $this->assertNull($user->corporation->fresh()->logo_path);
         Storage::assertMissing($path);
     }
 
-    public function test_guest_is_redirected()
+    public function test_guest_is_unauthorized()
     {
-        $this->get('/corporation')->assertRedirect('/login');
+        $this->getJson('/api/corporation')->assertUnauthorized();
     }
 }

@@ -1,0 +1,12 @@
+{
+    "title": "Corporation",
+    "heading": "Corporation",
+    "description": "Your company name and the logo shown at the foot of every email.",
+    "corporation_name": "Corporation name",
+    "email_logo": "Email logo",
+    "logo_hint": "PNG, JPG or WebP, up to 2 MB.",
+    "logo_alt": "Corporation logo",
+    "replace_logo": "Replace logo",
+    "upload_logo": "Upload logo",
+    "remove": "Remove"
+}

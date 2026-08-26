@@ -7,15 +7,13 @@ const PNG = Buffer.from(
     'base64',
 );
 
-test('an admin edits the corporation name and uploads a logo', async ({ page }) => {
+test('an admin sees the fixed corporation name and uploads a logo', async ({ page }) => {
     await page.goto('/corporation');
     await expect(page.getByRole('heading', { name: 'Corporation' })).toBeVisible();
 
-    // Rename the corporation
-    await page.getByLabel('Corporation name').fill('Acme Renamed');
-    await page.getByRole('button', { name: 'Save' }).click();
-    await page.reload();
-    await expect(page.getByLabel('Corporation name')).toHaveValue('Acme Renamed');
+    // The name is shown, but there is nothing to edit it with.
+    await expect(page.getByText(testUser.corporation)).toBeVisible();
+    await expect(page.getByLabel('Corporation name')).not.toBeVisible();
 
     // Upload a logo — the hidden file input backs the "Upload logo" button
     await page.setInputFiles('input[type=file]', { name: 'logo.png', mimeType: 'image/png', buffer: PNG });
@@ -28,11 +26,4 @@ test('an admin edits the corporation name and uploads a logo', async ({ page }) 
     // And can be removed
     await page.getByRole('button', { name: 'Remove' }).click();
     await expect(page.getByRole('img', { name: 'Corporation logo' })).not.toBeVisible();
-
-    // Restore the name — the test DB is shared across specs. Wait for the
-    // save to land: ending the test here would abort the in-flight request.
-    await page.getByLabel('Corporation name').fill(testUser.corporation);
-    await page.getByRole('button', { name: 'Save' }).click();
-    await page.reload();
-    await expect(page.getByLabel('Corporation name')).toHaveValue(testUser.corporation);
 });

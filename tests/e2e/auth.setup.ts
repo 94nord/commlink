@@ -8,13 +8,18 @@ setup('authenticate', async ({ page, request }) => {
     await resetDatabase(request);
     await seedUser(request);
 
+    // Pin the whole suite to English — storageState() below snapshots
+    // localStorage, so every other e2e test reuses this without setting it.
+    await page.addInitScript(() => localStorage.setItem('language', 'en'));
+
     await page.goto('/login');
     await page.getByLabel('Email address').fill(testUser.email);
     await page.getByLabel('Password', { exact: true }).fill(testUser.password);
     await page.getByRole('button', { name: 'Log in' }).click();
 
-    await page.waitForURL('/dashboard');
-    await expect(page.getByRole('heading', { name: testUser.corporation })).toBeVisible();
+    // The inbox is the landing page now that the dashboard is gone.
+    await page.waitForURL('/inbox');
+    await expect(page.getByRole('heading', { name: 'Inbox', level: 1 })).toBeVisible();
 
     await page.context().storageState({ path: authFile });
 });

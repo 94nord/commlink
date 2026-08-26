@@ -2,33 +2,22 @@ import Heading from '@/components/heading';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/react';
-
-const sidebarNavItems: NavItem[] = [
-    {
-        title: 'Profile',
-        url: '/settings/profile',
-        icon: null,
-    },
-    {
-        title: 'Password',
-        url: '/settings/password',
-        icon: null,
-    },
-    {
-        title: 'Appearance',
-        url: '/settings/appearance',
-        icon: null,
-    },
-];
+import { useTranslation } from 'react-i18next';
+import { Link, useLocation } from 'react-router-dom';
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
-    const currentPath = window.location.pathname;
+    const { t } = useTranslation('settings');
+    const location = useLocation();
+
+    const sidebarNavItems = [
+        { title: t('nav_password'), url: '/settings/password' },
+        { title: t('nav_appearance'), url: '/settings/appearance' },
+        { title: t('nav_language'), url: '/settings/language' },
+    ];
 
     return (
         <div className="px-4 py-6">
-            <Heading title="Settings" description="Manage your profile and account settings" />
+            <Heading title={t('nav_heading')} description={t('nav_description')} />
 
             <div className="flex flex-col space-y-8 lg:flex-row lg:space-y-0 lg:space-x-12">
                 <aside className="w-full max-w-xl lg:w-48">
@@ -40,12 +29,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
                                 variant="ghost"
                                 asChild
                                 className={cn('w-full justify-start', {
-                                    'bg-muted': currentPath === item.url,
+                                    'bg-muted': location.pathname === item.url,
                                 })}
                             >
-                                <Link href={item.url}>
-                                    {item.title}
-                                </Link>
+                                <Link to={item.url}>{item.title}</Link>
                             </Button>
                         ))}
                     </nav>

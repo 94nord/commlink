@@ -48,6 +48,7 @@ class DatabaseSeeder extends Seeder
             'name' => env('SEED_USER_NAME', 'Example Admin'),
             'email' => $email,
             'is_admin' => true,
+            'is_founder' => true,
         ]);
     }
 }

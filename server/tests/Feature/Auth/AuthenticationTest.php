@@ -11,31 +11,24 @@ class AuthenticationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_login_screen_can_be_rendered()
-    {
-        $response = $this->get('/login');
-
-        $response->assertStatus(200);
-    }
-
-    public function test_users_can_authenticate_using_the_login_screen()
+    public function test_users_can_authenticate_using_the_login_endpoint()
     {
         $user = User::factory()->create();
 
-        $response = $this->post('/login', [
+        $response = $this->postJson('/api/login', [
             'email' => $user->email,
             'password' => 'password',
         ]);
 
         $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $response->assertOk()->assertJsonPath('user.id', $user->id);
     }
 
     public function test_logging_in_records_an_event()
     {
         $user = User::factory()->create();
 
-        $this->post('/login', [
+        $this->postJson('/api/login', [
             'email' => $user->email,
             'password' => 'password',
         ]);
@@ -51,7 +44,7 @@ class AuthenticationTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->post('/login', [
+        $this->postJson('/api/login', [
             'email' => $user->email,
             'password' => 'wrong-password',
         ]);
@@ -63,9 +56,9 @@ class AuthenticationTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $response = $this->actingAs($user)->post('/logout');
+        $response = $this->actingAs($user)->postJson('/api/logout');
 
-        $this->assertGuest();
-        $response->assertRedirect('/');
+        $this->assertGuest('web');
+        $response->assertNoContent();
     }
 }

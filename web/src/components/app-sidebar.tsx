@@ -1,75 +1,45 @@
-import { NavFooter } from '@/components/nav-footer';
+import { useAuth } from '@/auth/AuthContext';
 import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
-import { type NavItem, type SharedData } from '@/types';
-import { Link, usePage } from '@inertiajs/react';
-import { Building2, BookOpen, Calendar, CalendarRange, ClipboardList, Folder, FolderKanban, LayoutGrid, UserCog, Users } from 'lucide-react';
+import { type NavItem } from '@/types';
+import { Building2, Inbox, UserCog, Users } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import AppLogo from './app-logo';
 
-const baseNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        url: '/dashboard',
-        icon: LayoutGrid,
-    },
-    {
-        title: 'Projects',
-        url: '/projects',
-        icon: FolderKanban,
-    },
-    {
-        title: 'Cases',
-        url: '/cases',
-        icon: ClipboardList,
-    },
-    {
-        title: 'Visits',
-        url: '/visits',
-        icon: Calendar,
-    },
-    {
-        title: 'Rounds',
-        url: '/rounds',
-        icon: CalendarRange,
-    },
-    {
-        title: 'Customers',
-        url: '/customers',
-        icon: Users,
-    },
-];
-
-// Admin-only: managing staff and corporation settings.
-const adminNavItems: NavItem[] = [
-    {
-        title: 'Staff',
-        url: '/staff',
-        icon: UserCog,
-    },
-    {
-        title: 'Corporation',
-        url: '/corporation',
-        icon: Building2,
-    },
-];
-
-const footerNavItems: NavItem[] = [
-    {
-        title: 'Repository',
-        url: 'https://github.com/laravel/react-starter-kit',
-        icon: Folder,
-    },
-    {
-        title: 'Documentation',
-        url: 'https://laravel.com/docs/starter-kits',
-        icon: BookOpen,
-    },
-];
-
 export function AppSidebar() {
-    const { auth } = usePage<SharedData>().props;
-    const mainNavItems = auth.user.is_admin ? [...baseNavItems, ...adminNavItems] : baseNavItems;
+    const { user } = useAuth();
+    const { t } = useTranslation('nav');
+
+    const baseNavItems: NavItem[] = [
+        {
+            title: t('inbox'),
+            url: '/inbox',
+            icon: Inbox,
+        },
+        {
+            title: t('customers'),
+            url: '/customers',
+            icon: Users,
+        },
+    ];
+
+    // Admin-only: managing staff and corporation settings.
+    const adminNavItems: NavItem[] = [
+        {
+            title: t('staff'),
+            url: '/staff',
+            icon: UserCog,
+        },
+        {
+            title: t('corporation'),
+            url: '/corporation',
+            icon: Building2,
+        },
+    ];
+
+    const mainNavItems = user?.is_admin ? [...baseNavItems, ...adminNavItems] : baseNavItems;
 
     return (
         <Sidebar collapsible="icon" variant="inset">
@@ -77,7 +47,7 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href="/dashboard">
+                            <Link to="/inbox">
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>

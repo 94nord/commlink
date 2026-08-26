@@ -26,9 +26,7 @@ export default function ConfirmDialog({
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
                 </DialogHeader>
-                {description && (
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">{description}</p>
-                )}
+                {description && <p className="text-sm text-neutral-600 dark:text-neutral-400">{description}</p>}
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={processing}>
                         Cancel

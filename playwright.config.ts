@@ -2,8 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * E2E tests run against the isolated, containerized test stack (Compose
- * profile "test" on port 9080), which boots into a freshly-migrated empty
- * database. Build assets first: `make test` runs the full cycle.
+ * profile "test"): the built web/ SPA on port 9081, calling the Laravel API
+ * (api-test) on port 9080. `make test` runs the full cycle.
  */
 export default defineConfig({
     testDir: './tests/e2e',
@@ -13,11 +13,13 @@ export default defineConfig({
     workers: 1,
     reporter: 'list',
     use: {
-        baseURL: 'http://localhost:9080',
+        baseURL: 'http://localhost:9081',
         trace: 'on-first-retry',
     },
     webServer: {
         command: 'docker compose --profile test up --build',
+        // The API (migrations + PHP-FPM) is the real readiness bottleneck;
+        // the static web-test nginx comes up almost instantly once built.
         url: 'http://localhost:9080/up',
         reuseExistingServer: true,
         timeout: 300_000,

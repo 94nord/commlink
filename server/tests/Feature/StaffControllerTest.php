@@ -21,23 +21,20 @@ class StaffControllerTest extends TestCase
         Staff::factory()->count(3)->create(); // other corps
 
         $this->actingAs($user)
-            ->get('/staff')
+            ->getJson('/api/staff')
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
-                ->component('staff/index')
-                ->has('staff', 3) // founder + 2
-            );
+            ->assertJsonCount(3, 'staff'); // founder + 2
     }
 
     public function test_store_creates_a_staff_member_with_email_and_role()
     {
         $user = User::factory()->admin()->create();
 
-        $this->actingAs($user)->post('/staff', [
+        $this->actingAs($user)->postJson('/api/staff', [
             'name' => 'Bo Jensen',
             'email' => 'bo@example.com',
             'is_admin' => true,
-        ])->assertRedirect(route('staff.index'));
+        ])->assertCreated();
 
         $staff = Staff::where('name', 'Bo Jensen')->first();
         $this->assertNotNull($staff);
@@ -54,11 +51,11 @@ class StaffControllerTest extends TestCase
         $user = User::factory()->admin()->create();
         $staff = Staff::factory()->for($user->corporation)->create(['name' => 'Old Name']);
 
-        $this->actingAs($user)->patch("/staff/{$staff->id}", [
+        $this->actingAs($user)->patchJson("/api/staff/{$staff->id}", [
             'name' => 'New Name',
             'email' => 'new@example.com',
             'is_admin' => true,
-        ])->assertRedirect()->assertSessionHasNoErrors();
+        ])->assertOk();
 
         $staff->refresh();
         $this->assertSame('New Name', $staff->name);
@@ -72,10 +69,10 @@ class StaffControllerTest extends TestCase
         $user = User::factory()->admin()->create();
         Staff::factory()->for($user->corporation)->create(); // a second, non-admin staff
 
-        $this->actingAs($user)->patch("/staff/{$user->staff->id}", [
+        $this->actingAs($user)->patchJson("/api/staff/{$user->staff->id}", [
             'name' => $user->name,
             'is_admin' => false,
-        ])->assertSessionHasErrors('is_admin');
+        ])->assertJsonValidationErrors('is_admin');
 
         $this->assertTrue($user->staff->fresh()->is_admin);
     }
@@ -86,7 +83,7 @@ class StaffControllerTest extends TestCase
         $foreign = Staff::factory()->create(['name' => 'Foreign']);
 
         $this->actingAs($user)
-            ->patch("/staff/{$foreign->id}", ['name' => 'Hacked'])
+            ->patchJson("/api/staff/{$foreign->id}", ['name' => 'Hacked'])
             ->assertNotFound();
 
         $this->assertSame('Foreign', $foreign->fresh()->name);
@@ -98,9 +95,8 @@ class StaffControllerTest extends TestCase
         $second = Staff::factory()->for($user->corporation)->create();
 
         $this->actingAs($user)
-            ->delete("/staff/{$second->id}")
-            ->assertRedirect()
-            ->assertSessionHasNoErrors();
+            ->deleteJson("/api/staff/{$second->id}")
+            ->assertNoContent();
 
         $this->assertSoftDeleted($second);
         $this->assertNotSoftDeleted($user->staff); // founder remains
@@ -117,9 +113,8 @@ class StaffControllerTest extends TestCase
         $second->update(['user_id' => $secondUser->id]);
 
         $this->actingAs($user)
-            ->delete("/staff/{$second->id}")
-            ->assertRedirect()
-            ->assertSessionHasNoErrors();
+            ->deleteJson("/api/staff/{$second->id}")
+            ->assertNoContent();
 
         $this->assertSoftDeleted($second);
         $this->assertModelMissing($secondUser);
@@ -130,9 +125,8 @@ class StaffControllerTest extends TestCase
         $user = User::factory()->admin()->create(); // founder is the only staff
 
         $this->actingAs($user)
-            ->delete("/staff/{$user->staff->id}")
-            ->assertRedirect()
-            ->assertSessionHasErrors('staff');
+            ->deleteJson("/api/staff/{$user->staff->id}")
+            ->assertJsonValidationErrors('staff');
 
         $this->assertNotSoftDeleted($user->staff);
     }
@@ -143,11 +137,46 @@ class StaffControllerTest extends TestCase
         Staff::factory()->for($user->corporation)->create(); // non-admin second staff
 
         $this->actingAs($user)
-            ->delete("/staff/{$user->staff->id}")
-            ->assertRedirect()
-            ->assertSessionHasErrors('staff');
+            ->deleteJson("/api/staff/{$user->staff->id}")
+            ->assertJsonValidationErrors('staff');
 
         $this->assertNotSoftDeleted($user->staff);
+    }
+
+    public function test_the_founder_cannot_be_deleted_even_when_other_admins_exist()
+    {
+        $user = User::factory()->admin()->create();
+        $user->staff->update(['is_founder' => true]);
+
+        // Two other admins with logins — the "last admin" guard alone would
+        // allow this deletion, so this proves the founder guard is a
+        // separate, unconditional check.
+        Staff::factory()->for($user->corporation)->create(['is_admin' => true])
+            ->update(['user_id' => User::factory()->create(['corporation_id' => $user->corporation_id])->id]);
+        Staff::factory()->for($user->corporation)->create(['is_admin' => true])
+            ->update(['user_id' => User::factory()->create(['corporation_id' => $user->corporation_id])->id]);
+
+        $this->actingAs($user)
+            ->deleteJson("/api/staff/{$user->staff->id}")
+            ->assertJsonValidationErrors('staff');
+
+        $this->assertNotSoftDeleted($user->staff);
+    }
+
+    public function test_the_founder_cannot_be_demoted_even_when_other_admins_exist()
+    {
+        $user = User::factory()->admin()->create();
+        $user->staff->update(['is_founder' => true]);
+
+        Staff::factory()->for($user->corporation)->create(['is_admin' => true])
+            ->update(['user_id' => User::factory()->create(['corporation_id' => $user->corporation_id])->id]);
+
+        $this->actingAs($user)->patchJson("/api/staff/{$user->staff->id}", [
+            'name' => $user->name,
+            'is_admin' => false,
+        ])->assertJsonValidationErrors('is_admin');
+
+        $this->assertTrue($user->staff->fresh()->is_admin);
     }
 
     public function test_invite_creates_a_login_and_sends_a_set_password_email()
@@ -158,9 +187,8 @@ class StaffControllerTest extends TestCase
         $staff = Staff::factory()->for($user->corporation)->create(['email' => 'invitee@example.com']);
 
         $this->actingAs($user)
-            ->post("/staff/{$staff->id}/invite")
-            ->assertRedirect()
-            ->assertSessionHasNoErrors();
+            ->postJson("/api/staff/{$staff->id}/invite")
+            ->assertOk();
 
         $staff->refresh();
         $this->assertNotNull($staff->user_id);
@@ -176,8 +204,8 @@ class StaffControllerTest extends TestCase
         $staff = Staff::factory()->for($user->corporation)->create(['email' => null]);
 
         $this->actingAs($user)
-            ->post("/staff/{$staff->id}/invite")
-            ->assertSessionHasErrors('email');
+            ->postJson("/api/staff/{$staff->id}/invite")
+            ->assertJsonValidationErrors('email');
 
         $this->assertNull($staff->fresh()->user_id);
     }
@@ -189,10 +217,10 @@ class StaffControllerTest extends TestCase
         $user = User::factory()->admin()->create();
         $staff = Staff::factory()->for($user->corporation)->create(['email' => 'again@example.com']);
 
-        $this->actingAs($user)->post("/staff/{$staff->id}/invite")->assertSessionHasNoErrors();
+        $this->actingAs($user)->postJson("/api/staff/{$staff->id}/invite")->assertOk();
         $firstUserId = $staff->fresh()->user_id;
 
-        $this->actingAs($user)->post("/staff/{$staff->id}/invite")->assertSessionHasNoErrors();
+        $this->actingAs($user)->postJson("/api/staff/{$staff->id}/invite")->assertOk();
 
         $this->assertSame($firstUserId, $staff->fresh()->user_id);
     }
@@ -202,15 +230,15 @@ class StaffControllerTest extends TestCase
         $user = User::factory()->admin()->create();
 
         $this->actingAs($user)
-            ->post('/staff', [])
-            ->assertSessionHasErrors('name');
+            ->postJson('/api/staff', [])
+            ->assertJsonValidationErrors('name');
 
         $this->assertSame(1, Staff::count()); // only the founder
     }
 
-    public function test_guest_is_redirected()
+    public function test_guest_is_unauthorized()
     {
-        $this->get('/staff')->assertRedirect('/login');
-        $this->post('/staff', [])->assertRedirect('/login');
+        $this->getJson('/api/staff')->assertUnauthorized();
+        $this->postJson('/api/staff', [])->assertUnauthorized();
     }
 }

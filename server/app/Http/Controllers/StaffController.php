@@ -5,36 +5,30 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreStaffRequest;
 use App\Http\Requests\UpdateStaffRequest;
 use App\Models\Staff;
+use App\Models\User;
 use App\Support\EventRecorder;
-use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Inertia\Inertia;
-use Inertia\Response;
 
 class StaffController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request): JsonResponse
     {
         $staff = $request->user()->corporation->staff()
             ->orderBy('name')
             ->get();
 
-        return Inertia::render('staff/index', [
-            'staff' => $staff->map(fn ($member) => [
-                'id' => $member->id,
-                'name' => $member->name,
-                'email' => $member->email,
-                'isAdmin' => $member->is_admin,
-                'hasLogin' => $member->user_id !== null,
-            ]),
+        return response()->json([
+            'staff' => $staff->map(fn ($member) => $this->present($member)),
         ]);
     }
 
-    public function store(StoreStaffRequest $request): RedirectResponse
+    public function store(StoreStaffRequest $request): JsonResponse
     {
         $corporation = $request->user()->corporation;
 
@@ -46,18 +40,27 @@ class StaffController extends Controller
 
         EventRecorder::record($corporation, 'staff.created', subject: $staff);
 
-        return to_route('staff.index');
+        return response()->json(['staff' => $this->present($staff)], 201);
     }
 
-    public function update(UpdateStaffRequest $request, int $staff): RedirectResponse
+    public function update(UpdateStaffRequest $request, int $staff): JsonResponse
     {
         $corporation = $request->user()->corporation;
         $staff = $corporation->staff()->findOrFail($staff);
 
+        // The founder is always an admin — an unconditional guard, checked
+        // before the "last admin with a login" one below since it applies
+        // even when other admins exist.
+        if ($staff->is_founder && ! $request->boolean('is_admin')) {
+            throw ValidationException::withMessages([
+                'is_admin' => __('staff.founder_is_always_admin'),
+            ]);
+        }
+
         // Never leave the corporation without an admin who can log in.
         if ($staff->is_admin && ! $request->boolean('is_admin') && $this->isLastAdminWithLogin($staff)) {
             throw ValidationException::withMessages([
-                'is_admin' => 'This is the last admin who can log in — promote someone else first.',
+                'is_admin' => __('staff.last_admin'),
             ]);
         }
 
@@ -69,24 +72,33 @@ class StaffController extends Controller
 
         EventRecorder::record($corporation, 'staff.updated', subject: $staff);
 
-        return back();
+        return response()->json(['staff' => $this->present($staff)]);
     }
 
-    public function destroy(Request $request, int $staff): RedirectResponse
+    public function destroy(Request $request, int $staff): Response|JsonResponse
     {
         $corporation = $request->user()->corporation;
         $staff = $corporation->staff()->findOrFail($staff);
 
+        // The founder can never be removed — unconditional, unlike the
+        // guards below, which only stop the corporation from reaching zero
+        // staff or zero logged-in admins.
+        if ($staff->is_founder) {
+            throw ValidationException::withMessages([
+                'staff' => __('staff.cannot_delete_founder'),
+            ]);
+        }
+
         // S2: a corporation can never have zero staff.
         if ($corporation->staff()->count() <= 1) {
-            return back()->withErrors([
-                'staff' => 'A corporation must have at least one staff member.',
+            throw ValidationException::withMessages([
+                'staff' => __('staff.last_staff_member'),
             ]);
         }
 
         if ($staff->is_admin && $this->isLastAdminWithLogin($staff)) {
-            return back()->withErrors([
-                'staff' => 'This is the last admin who can log in — promote someone else first.',
+            throw ValidationException::withMessages([
+                'staff' => __('staff.last_admin'),
             ]);
         }
 
@@ -96,28 +108,28 @@ class StaffController extends Controller
         $staff->user?->delete();
         $staff->delete();
 
-        return back();
+        return response()->noContent();
     }
 
     /**
      * Provision (or re-send) a login: create the user if needed, then email a
      * set-password link via the standard password-reset flow.
      */
-    public function invite(Request $request, int $staff): RedirectResponse
+    public function invite(Request $request, int $staff): JsonResponse
     {
         $corporation = $request->user()->corporation;
         $staff = $corporation->staff()->findOrFail($staff);
 
         if ($staff->email === null) {
             throw ValidationException::withMessages([
-                'email' => 'Add an email address before inviting this staff member.',
+                'email' => __('staff.email_required_for_invite'),
             ]);
         }
 
         if ($staff->user_id === null) {
-            if (\App\Models\User::where('email', $staff->email)->exists()) {
+            if (User::where('email', $staff->email)->exists()) {
                 throw ValidationException::withMessages([
-                    'email' => 'That email already has a login.',
+                    'email' => __('staff.login_exists'),
                 ]);
             }
 
@@ -135,7 +147,22 @@ class StaffController extends Controller
 
         EventRecorder::record($corporation, 'staff.login_invited', subject: $staff);
 
-        return back();
+        return response()->json(['status' => 'invited']);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function present(Staff $staff): array
+    {
+        return [
+            'id' => $staff->id,
+            'name' => $staff->name,
+            'email' => $staff->email,
+            'isAdmin' => $staff->is_admin,
+            'isFounder' => $staff->is_founder,
+            'hasLogin' => $staff->user_id !== null,
+        ];
     }
 
     /**

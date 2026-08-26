@@ -35,11 +35,11 @@ test('the founder is provisioned as staff and staff can be managed', async ({ pa
     await expect(page.getByText('Renamed Inspector')).not.toBeVisible();
     await expect(rows).toHaveCount(1);
 
-    // The last staff member cannot be deleted
-    await rows.getByRole('button', { name: 'Delete staff member' }).click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Delete staff member' }).click();
-
-    await expect(page.getByText('A corporation must have at least one staff member.')).toBeVisible();
+    // The founder — the only staff member left — cannot be deleted. This is
+    // the founder guard specifically, not the more general "last staff
+    // member" one: the button is already disabled, so the dialog never
+    // opens to begin with.
+    await expect(rows.getByRole('button', { name: 'Delete staff member' })).toBeDisabled();
     await expect(rows).toHaveCount(1);
 });
 

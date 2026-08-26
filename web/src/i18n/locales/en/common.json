@@ -1,0 +1,14 @@
+{
+    "cancel": "Cancel",
+    "save": "Save",
+    "remove": "Remove",
+    "add": "Add",
+    "delete": "Delete",
+    "loading": "Loading…",
+    "optional": "(optional)",
+    "validation_failed": "Validation failed",
+    "sr_close": "Close",
+    "sr_toggle_sidebar": "Toggle Sidebar",
+    "sr_sidebar_navigation": "Sidebar Navigation",
+    "sr_more": "More"
+}

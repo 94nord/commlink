@@ -27,7 +27,7 @@ class StoreStaffRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'email.unique' => 'A staff member with this email already exists.',
+            'email.unique' => __('staff.email_taken'),
         ];
     }
 }

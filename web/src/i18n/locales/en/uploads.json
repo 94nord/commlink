@@ -1,0 +1,21 @@
+{
+    "title": "Send files",
+    "heading": "Send files to {{name}}",
+    "intro": "Pick the photos or PDF you want to send. They go straight to the team you have been texting.",
+    "loading": "Opening…",
+    "dead_link_title": "This link no longer works",
+    "dead_link_body": "It may have expired or already been replaced. Ask for a new one and we will text it over.",
+    "choose": "Choose files",
+    "add_more": "Add more",
+    "selected_one": "1 file ready to send",
+    "selected_other": "{{count}} files ready to send",
+    "remove": "Remove",
+    "send": "Send",
+    "sending": "Sending…",
+    "sent_title": "Thanks — that came through",
+    "sent_body": "The team can see what you sent now. You can send more if there is anything else.",
+    "send_more": "Send more files",
+    "too_many": "That is more than can go in one upload. Remove a few, or send the rest afterwards.",
+    "failed": "That did not go through. Check your connection and try again.",
+    "expires": "This link works until {{date}}."
+}

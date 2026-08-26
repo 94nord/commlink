@@ -3,20 +3,25 @@
 namespace App\Http\Controllers;
 
 use App\Support\EventRecorder;
-use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
-use Inertia\Inertia;
-use Inertia\Response;
 
+/**
+ * The corporation's own settings — currently just its logo. The name is set
+ * once, at `app:create-corporation`, and has no edit endpoint: it is what
+ * identifies the firm in every text and email, so changing it is not a
+ * self-service form action.
+ */
 class CorporationController extends Controller
 {
-    public function edit(Request $request): Response
+    public function edit(Request $request): JsonResponse
     {
         $corporation = $request->user()->corporation;
 
-        return Inertia::render('corporation/edit', [
+        return response()->json([
             'corporation' => [
                 'name' => $corporation->name,
                 'hasLogo' => $corporation->logo_path !== null,
@@ -24,22 +29,7 @@ class CorporationController extends Controller
         ]);
     }
 
-    public function update(Request $request): RedirectResponse
-    {
-        $corporation = $request->user()->corporation;
-
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-        ]);
-
-        $corporation->update(['name' => $validated['name']]);
-
-        EventRecorder::record($corporation, 'corporation.updated', subject: $corporation);
-
-        return back();
-    }
-
-    public function uploadLogo(Request $request): RedirectResponse
+    public function uploadLogo(Request $request): JsonResponse
     {
         $corporation = $request->user()->corporation;
 
@@ -58,10 +48,10 @@ class CorporationController extends Controller
 
         EventRecorder::record($corporation, 'corporation.updated', subject: $corporation);
 
-        return back();
+        return response()->json(['hasLogo' => true]);
     }
 
-    public function deleteLogo(Request $request): RedirectResponse
+    public function deleteLogo(Request $request): Response
     {
         $corporation = $request->user()->corporation;
 
@@ -72,13 +62,13 @@ class CorporationController extends Controller
             EventRecorder::record($corporation, 'corporation.updated', subject: $corporation);
         }
 
-        return back();
+        return response()->noContent();
     }
 
     /**
-     * Stream the stored logo for the settings preview. Serving it through the
-     * app keeps it env-independent — the S3/MinIO object never needs to be
-     * publicly reachable from the browser (it isn't in dev).
+     * Stream the stored logo. Serving it through the app keeps it
+     * env-independent — the S3/MinIO object never needs to be publicly
+     * reachable from the browser (it isn't in dev).
      */
     public function logo(Request $request): StreamedResponse
     {

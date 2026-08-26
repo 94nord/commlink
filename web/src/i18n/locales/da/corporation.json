@@ -1,0 +1,12 @@
+{
+    "title": "Virksomhed",
+    "heading": "Virksomhed",
+    "description": "Dit firmanavn og det logo, der vises nederst i alle e-mails.",
+    "corporation_name": "Virksomhedsnavn",
+    "email_logo": "Logo til e-mail",
+    "logo_hint": "PNG, JPG eller WebP, op til 2 MB.",
+    "logo_alt": "Virksomhedens logo",
+    "replace_logo": "Udskift logo",
+    "upload_logo": "Upload logo",
+    "remove": "Fjern"
+}

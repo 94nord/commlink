@@ -75,6 +75,7 @@ class CreateCorporationCommandTest extends TestCase
         $staff = $corporation->staff()->first();
         $this->assertSame('Jane Admin', $staff->name);
         $this->assertTrue($staff->is_admin);
+        $this->assertTrue($staff->is_founder);
         $this->assertTrue($staff->user->is($corporation->users()->first()));
     }
 
@@ -87,13 +88,13 @@ class CreateCorporationCommandTest extends TestCase
             '--password' => 'secret-password',
         ])->assertSuccessful();
 
-        $response = $this->post('/login', [
+        $response = $this->postJson('/api/login', [
             'email' => 'jane@example.com',
             'password' => 'secret-password',
         ]);
 
         $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $response->assertOk();
     }
 
     public function test_it_rejects_a_duplicate_email()

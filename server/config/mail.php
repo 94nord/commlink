@@ -113,4 +113,17 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Outbox Retention
+    |--------------------------------------------------------------------------
+    |
+    | Sent and failed outbox rows keep the recipient's email address for the
+    | audit trail; app:prune-outbox deletes them after this many days (data
+    | minimisation). Pending rows are never pruned.
+    |
+    */
+
+    'outbox_retention_days' => (int) env('OUTBOX_RETENTION_DAYS', 90),
+
 ];

@@ -1,7 +1,8 @@
-// Components
-import { Head, useForm } from '@inertiajs/react';
+import { api, ApiError } from '@/api/client';
+import { usePageTitle } from '@/hooks/use-page-title';
 import { LoaderCircle } from 'lucide-react';
-import { FormEventHandler } from 'react';
+import { FormEventHandler, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import InputError from '@/components/input-error';
 import TextLink from '@/components/text-link';
@@ -10,52 +11,66 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AuthLayout from '@/layouts/auth-layout';
 
-export default function ForgotPassword({ status }: { status?: string }) {
-    const { data, setData, post, processing, errors } = useForm({
-        email: '',
-    });
+export default function ForgotPassword() {
+    const { t } = useTranslation('auth');
+    usePageTitle(t('forgot_password_title'));
+    const [email, setEmail] = useState('');
+    const [processing, setProcessing] = useState(false);
+    const [status, setStatus] = useState<string>();
+    const [error, setError] = useState<string>();
 
-    const submit: FormEventHandler = (e) => {
+    const submit: FormEventHandler = async (e) => {
         e.preventDefault();
+        setProcessing(true);
+        setError(undefined);
 
-        post(route('password.email'));
+        try {
+            const response = await api.post<{ status: string }>('/api/forgot-password', { email });
+            setStatus(response.status);
+        } catch (err) {
+            if (err instanceof ApiError) {
+                setError(err.fieldError('email'));
+            } else {
+                throw err;
+            }
+        } finally {
+            setProcessing(false);
+        }
     };
 
     return (
-        <AuthLayout title="Forgot password" description="Enter your email to receive a password reset link">
-            <Head title="Forgot password" />
-
+        <AuthLayout title={t('forgot_password_heading')} description={t('forgot_password_description')}>
             {status && <div className="mb-4 text-center text-sm font-medium text-green-600">{status}</div>}
 
             <div className="space-y-6">
                 <form onSubmit={submit}>
                     <div className="grid gap-2">
-                        <Label htmlFor="email">Email address</Label>
+                        <Label htmlFor="email">{t('email_address')}</Label>
                         <Input
                             id="email"
                             type="email"
                             name="email"
                             autoComplete="off"
-                            value={data.email}
+                            value={email}
                             autoFocus
-                            onChange={(e) => setData('email', e.target.value)}
-                            placeholder="email@example.com"
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder={t('email_placeholder')}
                         />
 
-                        <InputError message={errors.email} />
+                        <InputError message={error} />
                     </div>
 
                     <div className="my-6 flex items-center justify-start">
                         <Button className="w-full" disabled={processing}>
                             {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                            Email password reset link
+                            {t('email_reset_link')}
                         </Button>
                     </div>
                 </form>
 
                 <div className="text-muted-foreground space-x-1 text-center text-sm">
-                    <span>Or, return to</span>
-                    <TextLink href={route('login')}>log in</TextLink>
+                    <span>{t('or_return_to')}</span>
+                    <TextLink to="/login">{t('log_in_link')}</TextLink>
                 </div>
             </div>
         </AuthLayout>

@@ -72,11 +72,14 @@ class CreateCorporation extends Command
 
             // S2: a corporation always has at least one staff member — the
             // founder, who is the admin and can log in from day one.
+            // is_founder marks this specific row so it can never be deleted
+            // or demoted later, regardless of how many other admins exist.
             $staff = $corporation->staff()->create([
                 'user_id' => $user->id,
                 'name' => $input['name'],
                 'email' => $input['email'],
                 'is_admin' => true,
+                'is_founder' => true,
             ]);
 
             EventRecorder::record($corporation, 'corporation.created', subject: $corporation);

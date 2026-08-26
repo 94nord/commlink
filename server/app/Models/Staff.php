@@ -3,10 +3,10 @@
 namespace App\Models;
 
 use App\Models\Concerns\HasExternalReference;
+use Database\Factories\StaffFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -17,10 +17,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  *
  * A corporation always has at least one staff member (S2): the founder is
  * provisioned at corporation creation, and the last one cannot be deleted.
+ * The founder is additionally marked with `is_founder` — a stronger,
+ * unconditional guard than "last admin"/"last staff member": that one row
+ * can never be deleted or demoted, independent of how many other admins
+ * exist.
  */
 class Staff extends Model
 {
-    /** @use HasFactory<\Database\Factories\StaffFactory> */
+    /** @use HasFactory<StaffFactory> */
     use HasExternalReference, HasFactory, SoftDeletes;
 
     /**
@@ -41,6 +45,7 @@ class Staff extends Model
         'name',
         'email',
         'is_admin',
+        'is_founder',
         'external_ref',
     ];
 
@@ -51,6 +56,7 @@ class Staff extends Model
     {
         return [
             'is_admin' => 'boolean',
+            'is_founder' => 'boolean',
         ];
     }
 
@@ -66,10 +72,5 @@ class Staff extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
-    }
-
-    public function visits(): HasMany
-    {
-        return $this->hasMany(Visit::class);
     }
 }

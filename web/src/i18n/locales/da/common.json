@@ -1,0 +1,14 @@
+{
+    "cancel": "Annuller",
+    "save": "Gem",
+    "remove": "Fjern",
+    "add": "Tilføj",
+    "delete": "Slet",
+    "loading": "Indlæser…",
+    "optional": "(valgfrit)",
+    "validation_failed": "Validering mislykkedes",
+    "sr_close": "Luk",
+    "sr_toggle_sidebar": "Skift sidebjælke",
+    "sr_sidebar_navigation": "Navigation i sidebjælke",
+    "sr_more": "Mere"
+}

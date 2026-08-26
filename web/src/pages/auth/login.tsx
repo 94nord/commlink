@@ -1,6 +1,10 @@
-import { Head, useForm } from '@inertiajs/react';
+import { ApiError } from '@/api/client';
+import { useAuth } from '@/auth/AuthContext';
+import { usePageTitle } from '@/hooks/use-page-title';
 import { LoaderCircle } from 'lucide-react';
-import { FormEventHandler } from 'react';
+import { FormEventHandler, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import InputError from '@/components/input-error';
 import TextLink from '@/components/text-link';
@@ -10,39 +14,45 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AuthLayout from '@/layouts/auth-layout';
 
-interface LoginForm {
-    email: string;
-    password: string;
-    remember: boolean;
-}
+export default function Login() {
+    const { t } = useTranslation('auth');
+    usePageTitle(t('login_title'));
+    const { login } = useAuth();
+    const navigate = useNavigate();
+    const location = useLocation();
 
-interface LoginProps {
-    status?: string;
-    canResetPassword: boolean;
-}
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [processing, setProcessing] = useState(false);
+    const [errors, setErrors] = useState<Record<string, string[]>>({});
 
-export default function Login({ status, canResetPassword }: LoginProps) {
-    const { data, setData, post, processing, errors, reset } = useForm<LoginForm>({
-        email: '',
-        password: '',
-        remember: false,
-    });
-
-    const submit: FormEventHandler = (e) => {
+    const submit: FormEventHandler = async (e) => {
         e.preventDefault();
-        post(route('login'), {
-            onFinish: () => reset('password'),
-        });
+        setProcessing(true);
+        setErrors({});
+
+        try {
+            await login(email, password);
+            const from = (location.state as { from?: Location })?.from?.pathname ?? '/inbox';
+            navigate(from, { replace: true });
+        } catch (err) {
+            if (err instanceof ApiError) {
+                setErrors(err.errors);
+            } else {
+                throw err;
+            }
+        } finally {
+            setProcessing(false);
+            setPassword('');
+        }
     };
 
     return (
-        <AuthLayout title="Log in to your account" description="Enter your email and password below to log in">
-            <Head title="Log in" />
-
+        <AuthLayout title={t('login_heading')} description={t('login_description')}>
             <form className="flex flex-col gap-6" onSubmit={submit}>
                 <div className="grid gap-6">
                     <div className="grid gap-2">
-                        <Label htmlFor="email">Email address</Label>
+                        <Label htmlFor="email">{t('email_address')}</Label>
                         <Input
                             id="email"
                             type="email"
@@ -50,21 +60,19 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             autoFocus
                             tabIndex={1}
                             autoComplete="email"
-                            value={data.email}
-                            onChange={(e) => setData('email', e.target.value)}
-                            placeholder="email@example.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder={t('email_placeholder')}
                         />
-                        <InputError message={errors.email} />
+                        <InputError message={errors.email?.[0]} />
                     </div>
 
                     <div className="grid gap-2">
                         <div className="flex items-center">
-                            <Label htmlFor="password">Password</Label>
-                            {canResetPassword && (
-                                <TextLink href={route('password.request')} className="ml-auto text-sm" tabIndex={5}>
-                                    Forgot password?
-                                </TextLink>
-                            )}
+                            <Label htmlFor="password">{t('password')}</Label>
+                            <TextLink to="/forgot-password" className="ml-auto text-sm" tabIndex={5}>
+                                {t('forgot_password')}
+                            </TextLink>
                         </div>
                         <Input
                             id="password"
@@ -72,26 +80,24 @@ export default function Login({ status, canResetPassword }: LoginProps) {
                             required
                             tabIndex={2}
                             autoComplete="current-password"
-                            value={data.password}
-                            onChange={(e) => setData('password', e.target.value)}
-                            placeholder="Password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder={t('password_placeholder')}
                         />
-                        <InputError message={errors.password} />
+                        <InputError message={errors.password?.[0]} />
                     </div>
 
                     <div className="flex items-center space-x-3">
                         <Checkbox id="remember" name="remember" tabIndex={3} />
-                        <Label htmlFor="remember">Remember me</Label>
+                        <Label htmlFor="remember">{t('remember_me')}</Label>
                     </div>
 
                     <Button type="submit" className="mt-4 w-full" tabIndex={4} disabled={processing}>
                         {processing && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                        Log in
+                        {t('log_in')}
                     </Button>
                 </div>
             </form>
-
-            {status && <div className="mb-4 text-center text-sm font-medium text-green-600">{status}</div>}
         </AuthLayout>
     );
 }

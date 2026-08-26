@@ -2,11 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AddressType;
 use App\Enums\CustomerKind;
+use App\Inbox\Actions\AddCustomerAddress;
 use App\Models\Corporation;
 use App\Models\Customer;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class CustomerTest extends TestCase
@@ -33,15 +36,28 @@ class CustomerTest extends TestCase
 
     public function test_the_email_is_normalized_on_write()
     {
-        $customer = Customer::factory()->create(['email' => '  Anna.Larsen@Example.COM ']);
+        $customer = Customer::factory()->create();
+
+        // Through the real write path, which is what the customer form and
+        // the future email adapter both go through.
+        app(AddCustomerAddress::class)->handle($customer, AddressType::Email, '  Anna.Larsen@Example.COM ');
 
         $this->assertSame('anna.larsen@example.com', $customer->fresh()->email);
+    }
+
+    public function test_an_email_nobody_could_send_to_is_refused()
+    {
+        $customer = Customer::factory()->create();
+
+        $this->expectException(ValidationException::class);
+
+        app(AddCustomerAddress::class)->handle($customer, AddressType::Email, 'not-an-address');
     }
 
     public function test_an_email_resolves_to_exactly_one_customer_within_a_corporation()
     {
         $corporation = Corporation::factory()->create();
-        $customer = Customer::factory()->for($corporation)->create(['email' => 'anna@example.com']);
+        $customer = Customer::factory()->for($corporation)->withEmail('anna@example.com')->create();
 
         $resolved = Customer::findByEmail($corporation, ' ANNA@Example.com ');
 
@@ -49,12 +65,19 @@ class CustomerTest extends TestCase
         $this->assertTrue($resolved->is($customer));
     }
 
+    public function test_an_unparseable_email_resolves_to_nobody_rather_than_blowing_up()
+    {
+        $corporation = Corporation::factory()->create();
+
+        $this->assertNull(Customer::findByEmail($corporation, 'not-an-address'));
+    }
+
     public function test_the_same_email_at_two_corporations_is_two_separate_customers()
     {
         $first = Corporation::factory()->create();
         $second = Corporation::factory()->create();
-        $atFirst = Customer::factory()->for($first)->create(['email' => 'anna@example.com']);
-        $atSecond = Customer::factory()->for($second)->create(['email' => 'anna@example.com']);
+        $atFirst = Customer::factory()->for($first)->withEmail('anna@example.com')->create();
+        $atSecond = Customer::factory()->for($second)->withEmail('anna@example.com')->create();
 
         $this->assertFalse($atFirst->is($atSecond));
         $this->assertTrue(Customer::findByEmail($first, 'anna@example.com')->is($atFirst));
@@ -64,20 +87,26 @@ class CustomerTest extends TestCase
     public function test_a_duplicate_email_within_a_corporation_is_rejected()
     {
         $corporation = Corporation::factory()->create();
-        Customer::factory()->for($corporation)->create(['email' => 'anna@example.com']);
+        Customer::factory()->for($corporation)->withEmail('anna@example.com')->create();
 
+        // Now the identities index rather than a column on customers — one
+        // live owner per address, whatever kind of address it is.
         $this->expectException(QueryException::class);
 
-        Customer::factory()->for($corporation)->create(['email' => 'Anna@Example.com']);
+        Customer::factory()->for($corporation)->withEmail('anna@example.com')->create();
     }
 
     public function test_a_soft_deleted_customer_releases_its_email()
     {
         $corporation = Corporation::factory()->create();
-        $erased = Customer::factory()->for($corporation)->create(['email' => 'anna@example.com']);
+        $erased = Customer::factory()->for($corporation)->withEmail('anna@example.com')->create();
+
+        // Erasure soft-deletes the addresses with the person; that is what
+        // releases the mailbox now that it is not a column.
+        $erased->identities()->delete();
         $erased->delete();
 
-        $replacement = Customer::factory()->for($corporation)->create(['email' => 'anna@example.com']);
+        $replacement = Customer::factory()->for($corporation)->withEmail('anna@example.com')->create();
 
         $this->assertTrue(Customer::findByEmail($corporation, 'anna@example.com')->is($replacement));
     }

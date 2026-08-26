@@ -1,85 +1,93 @@
+import { api, ApiError, apiUrl } from '@/api/client';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { usePageTitle } from '@/hooks/use-page-title';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Head, router, useForm } from '@inertiajs/react';
-import { FormEventHandler, useRef, useState } from 'react';
-
-const breadcrumbs: BreadcrumbItem[] = [{ title: 'Corporation', href: '/corporation' }];
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface CorporationDetail {
     name: string;
     hasLogo: boolean;
 }
 
-export default function CorporationEdit({ corporation }: { corporation: CorporationDetail }) {
-    const nameForm = useForm({ name: corporation.name });
-    const logoForm = useForm<{ logo: File | null }>({ logo: null });
+export default function CorporationEdit() {
+    const { t } = useTranslation('corporation');
+    usePageTitle(t('title'));
+    const breadcrumbs: BreadcrumbItem[] = [{ title: t('title'), href: '/corporation' }];
+    const queryClient = useQueryClient();
+    const { data } = useQuery({
+        queryKey: ['corporation'],
+        queryFn: () => api.get<{ corporation: CorporationDetail }>('/api/corporation'),
+    });
+    const corporation = data?.corporation;
+
+    const [logoError, setLogoError] = useState<string>();
     const fileInput = useRef<HTMLInputElement>(null);
-    const [removing, setRemoving] = useState(false);
-    // Bumped after each change to bust the browser cache on the preview.
     const [logoVersion, setLogoVersion] = useState(0);
 
-    const submitName: FormEventHandler = (e) => {
-        e.preventDefault();
-        nameForm.patch(route('corporation.update'), { preserveScroll: true });
-    };
+    const invalidate = () => queryClient.invalidateQueries({ queryKey: ['corporation'] });
 
-    function uploadLogo(file: File) {
-        logoForm.setData('logo', file);
-        router.post(route('corporation.logo.store'), { logo: file }, {
-            forceFormData: true,
-            preserveScroll: true,
-            onSuccess: () => { setLogoVersion((v) => v + 1); logoForm.reset(); },
-        });
-    }
+    const uploadLogo = useMutation({
+        mutationFn: (file: File) => {
+            const form = new FormData();
+            form.append('logo', file);
+            return api.post('/api/corporation/logo', form);
+        },
+        onSuccess: () => {
+            invalidate();
+            setLogoVersion((v) => v + 1);
+            setLogoError(undefined);
+        },
+        onError: (err) => {
+            if (err instanceof ApiError) setLogoError(err.fieldError('logo'));
+            else throw err;
+        },
+    });
 
-    function removeLogo() {
-        setRemoving(true);
-        router.delete(route('corporation.logo.destroy'), {
-            preserveScroll: true,
-            onFinish: () => { setRemoving(false); setLogoVersion((v) => v + 1); },
-        });
+    const removeLogo = useMutation({
+        mutationFn: () => api.delete('/api/corporation/logo'),
+        onSuccess: () => {
+            invalidate();
+            setLogoVersion((v) => v + 1);
+        },
+    });
+
+    if (!corporation) {
+        return (
+            <AppLayout breadcrumbs={breadcrumbs}>
+                <div className="p-4" />
+            </AppLayout>
+        );
     }
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Corporation" />
             <div className="flex h-full flex-1 flex-col gap-8 rounded-xl p-4">
                 <div>
-                    <h1 className="text-xl font-semibold">Corporation</h1>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                        Your company name and the logo shown at the foot of every email.
-                    </p>
+                    <h1 className="text-xl font-semibold">{t('heading')}</h1>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">{t('description')}</p>
                 </div>
 
-                <form onSubmit={submitName} className="max-w-md space-y-4">
-                    <div className="grid gap-2">
-                        <Label htmlFor="name">Corporation name</Label>
-                        <Input
-                            id="name"
-                            value={nameForm.data.name}
-                            onChange={(e) => nameForm.setData('name', e.target.value)}
-                        />
-                        <InputError message={nameForm.errors.name} />
-                    </div>
-                    <Button disabled={nameForm.processing}>Save</Button>
-                </form>
+                <div className="max-w-md space-y-2">
+                    <Label>{t('corporation_name')}</Label>
+                    <p className="text-sm font-medium">{corporation.name}</p>
+                </div>
 
                 <div className="max-w-md space-y-4">
                     <div>
-                        <Label>Email logo</Label>
-                        <p className="text-sm text-neutral-600 dark:text-neutral-400">
-                            PNG, JPG or WebP, up to 2 MB.
-                        </p>
+                        <Label>{t('email_logo')}</Label>
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400">{t('logo_hint')}</p>
                     </div>
 
-                    {corporation.hasLogo && (
+                    {corporation?.hasLogo && (
                         <img
-                            src={`${route('corporation.logo')}?v=${logoVersion}`}
-                            alt="Corporation logo"
+                            src={`${apiUrl('/api/corporation/logo')}?v=${logoVersion}`}
+                            alt={t('logo_alt')}
+                            crossOrigin="use-credentials"
                             className="max-h-24 rounded-md border bg-white p-2"
                         />
                     )}
@@ -89,25 +97,30 @@ export default function CorporationEdit({ corporation }: { corporation: Corporat
                         type="file"
                         accept="image/png,image/jpeg,image/webp"
                         className="hidden"
-                        onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ''; }}
+                        onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) uploadLogo.mutate(f);
+                            e.target.value = '';
+                        }}
                     />
 
                     <div className="flex items-center gap-3">
-                        <Button
-                            type="button"
-                            variant="outline"
-                            disabled={logoForm.processing}
-                            onClick={() => fileInput.current?.click()}
-                        >
-                            {corporation.hasLogo ? 'Replace logo' : 'Upload logo'}
+                        <Button type="button" variant="outline" disabled={uploadLogo.isPending} onClick={() => fileInput.current?.click()}>
+                            {corporation?.hasLogo ? t('replace_logo') : t('upload_logo')}
                         </Button>
-                        {corporation.hasLogo && (
-                            <Button type="button" variant="ghost" className="text-red-600" disabled={removing} onClick={removeLogo}>
-                                Remove
+                        {corporation?.hasLogo && (
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                className="text-red-600"
+                                disabled={removeLogo.isPending}
+                                onClick={() => removeLogo.mutate()}
+                            >
+                                {t('remove')}
                             </Button>
                         )}
                     </div>
-                    <InputError message={logoForm.errors.logo} />
+                    <InputError message={logoError} />
                 </div>
             </div>
         </AppLayout>

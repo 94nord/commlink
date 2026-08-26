@@ -156,3 +156,52 @@
         @apply bg-background text-foreground;
     }
 }
+
+/*
+ * A rich message body — the sanitized HTML a channel like email produces.
+ *
+ * Tailwind's preflight strips list markers and block margins from every
+ * element, which is right for an app shell and wrong for a message somebody
+ * wrote: their bullet list has to still look like a bullet list. Scoped to
+ * this class so it only reaches message bodies, and kept to exactly the
+ * elements the sanitizer's allowlist can emit.
+ */
+@layer components {
+    /*
+     * `.tiptap` is the editor itself. It needs the same rules as a rendered
+     * message: preflight strips list markers there too, so a bullet list
+     * being typed looked like plain lines and read as broken.
+     */
+    .rich-body > :last-child,
+    .tiptap > :last-child {
+        margin-bottom: 0;
+    }
+
+    .rich-body p,
+    .tiptap p {
+        margin-bottom: 0.5rem;
+    }
+
+    .rich-body ul,
+    .rich-body ol,
+    .tiptap ul,
+    .tiptap ol {
+        margin-bottom: 0.5rem;
+        padding-left: 1.25rem;
+    }
+
+    .rich-body ul,
+    .tiptap ul {
+        list-style-type: disc;
+    }
+
+    .rich-body ol,
+    .tiptap ol {
+        list-style-type: decimal;
+    }
+
+    .rich-body a,
+    .tiptap a {
+        text-decoration-line: underline;
+    }
+}

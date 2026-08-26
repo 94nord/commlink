@@ -1,0 +1,21 @@
+{
+    "title": "Send filer",
+    "heading": "Send filer til {{name}}",
+    "intro": "Vælg de billeder eller PDF'er, du vil sende. De går direkte til det team, du har skrevet med.",
+    "loading": "Åbner…",
+    "dead_link_title": "Dette link virker ikke længere",
+    "dead_link_body": "Det er måske udløbet eller allerede blevet erstattet. Bed om et nyt, så sender vi det med det samme.",
+    "choose": "Vælg filer",
+    "add_more": "Tilføj flere",
+    "selected_one": "1 fil klar til at sende",
+    "selected_other": "{{count}} filer klar til at sende",
+    "remove": "Fjern",
+    "send": "Send",
+    "sending": "Sender…",
+    "sent_title": "Tak — det kom frem",
+    "sent_body": "Teamet kan se, hvad du har sendt nu. Du kan sende mere, hvis der er andet.",
+    "send_more": "Send flere filer",
+    "too_many": "Det er flere, end der kan sendes ad gangen. Fjern nogle, eller send resten bagefter.",
+    "failed": "Det gik ikke igennem. Tjek din forbindelse, og prøv igen.",
+    "expires": "Linket virker til den {{date}}."
+}

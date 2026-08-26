@@ -19,6 +19,11 @@
     </source>
     <php>
         <env name="APP_ENV" value="testing"/>
+        <!-- Pinned, not inherited: .env is read here too, so without these a
+             developer's Danish default would be live during the suite, and
+             every literal-English assertion would break. -->
+        <env name="APP_LOCALE" value="en"/>
+        <env name="APP_FALLBACK_LOCALE" value="en"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="CACHE_STORE" value="array"/>
@@ -28,6 +33,19 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
+        <!-- Pinned, not inherited: .env is read here too, so without this a
+             developer's real Reverb credentials would be live during the
+             suite, and a broadcast attempt with no Reverb server running
+             would fail the request that triggered it. -->
+        <env name="BROADCAST_CONNECTION" value="log"/>
+        <!-- Pinned, not inherited: .env is read here too, so without these a
+             developer's real Twilio settings would be live during the suite. -->
+        <env name="SMS_TRANSPORT" value="log"/>
+        <env name="TWILIO_SID" value=""/>
+        <env name="TWILIO_AUTH_TOKEN" value=""/>
+        <env name="EMAIL_TRANSPORT" value="log"/>
+        <env name="INBOX_SMS_WEBHOOK_URL" value=""/>
+        <env name="SANCTUM_STATEFUL_DOMAINS" value="localhost:5173"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
     </php>
 </phpunit>

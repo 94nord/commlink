@@ -1,34 +1,37 @@
-# One multi-stage Dockerfile, three profiles:
+# Two apps, two Dockerfiles (server/Dockerfile, web/Dockerfile), one Compose
+# file to orchestrate both. Three profiles:
 #
-#   prod  — app + web only; every value injected by the deployment platform
-#   dev   — adds PostgreSQL, MinIO and the Vite dev server over live-mounted
-#           source; nginx terminates locally-trusted TLS via mkcert (make certs first)
+#   prod  — api + web only; every value injected by the deployment platform
+#   dev   — adds PostgreSQL, MinIO, Mailpit, and Vite's own dev server
+#           talking directly (CORS + Sanctum cookies) to the PHP API
 #   test  — isolated, disposable stack on its own ports; boots into a
 #           freshly-migrated empty database and can run alongside dev
 #
-#   Surface              Dev          Test
-#   App (HTTPS / HTTP)   8443 / 8080  9080 (HTTP)
-#   Vite HMR             5173         —
-#   PostgreSQL           5432         5433
-#   MinIO API / console  9000 / 9001  —
+#   Surface                Dev            Test
+#   PHP API (HTTPS / HTTP) 8443 / 8080    9080 (HTTP)
+#   Web app (Vite / static) 5173          9081
+#   PostgreSQL              5432          5433
+#   MinIO API / console     9000 / 9001   —
+#   Mailpit UI / API        8025          9025 (API)
+#   Reverb (WebSocket)      8090          — (not wired into the test stack yet)
 
-name: inspection-book
+name: commlink
 
 services:
   # ── production ──────────────────────────────────────────────────────────────
   app:
     build:
-      context: .
+      context: ./server
       target: app
       args:
         INSTALL_DEV_DEPENDENCIES: "false"
     restart: unless-stopped
-    env_file: .env
+    env_file: server/.env
     profiles: [prod]
 
-  web:
+  api:
     build:
-      context: .
+      context: ./server
       target: web
     restart: unless-stopped
     environment:
@@ -40,15 +43,26 @@ services:
       - dokploy-network
     profiles: [prod]
 
-  # Runs due scheduled work (e.g. opening rounds at their scheduled start).
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_API_URL: ${API_URL:-https://api.example.com}
+    restart: unless-stopped
+    networks:
+      - default
+      - dokploy-network
+    profiles: [prod]
+
+  # Runs due scheduled work.
   scheduler:
     build:
-      context: .
+      context: ./server
       target: app
       args:
         INSTALL_DEV_DEPENDENCIES: "false"
     restart: unless-stopped
-    env_file: .env
+    env_file: server/.env
     entrypoint: []
     command: php artisan schedule:work
     profiles: [prod]
@@ -56,13 +70,13 @@ services:
   # ── development ─────────────────────────────────────────────────────────────
   app-dev:
     build:
-      context: .
+      context: ./server
       target: app
       args:
         INSTALL_DEV_DEPENDENCIES: "true"
     entrypoint: entrypoint-dev.sh
     volumes:
-      - .:/var/www/html
+      - ./server:/var/www/html
     depends_on:
       db:
         condition: service_healthy
@@ -70,9 +84,9 @@ services:
         condition: service_started
     profiles: [dev]
 
-  web-dev:
+  api-dev:
     build:
-      context: .
+      context: ./server
       target: web
     environment:
       FPM_HOST: app-dev
@@ -80,40 +94,63 @@ services:
       - "${DEV_HTTPS_PORT:-8443}:443"
       - "${DEV_HTTP_PORT:-8080}:80"
     volumes:
-      - ./public:/var/www/html/public:ro
-      - ./docker/nginx/templates-dev:/etc/nginx/templates:ro
-      - ./docker/nginx/certs:/etc/nginx/certs:ro
+      - ./server/public:/var/www/html/public:ro
+      - ./server/docker/nginx/templates-dev:/etc/nginx/templates:ro
+      - ./server/docker/nginx/certs:/etc/nginx/certs:ro
     depends_on:
       - app-dev
     profiles: [dev]
 
   scheduler-dev:
     build:
-      context: .
+      context: ./server
       target: app
       args:
         INSTALL_DEV_DEPENDENCIES: "true"
     entrypoint: []
     command: php artisan schedule:work
     volumes:
-      - .:/var/www/html
+      - ./server:/var/www/html
     depends_on:
       db:
         condition: service_healthy
     profiles: [dev]
 
-  vite:
+  # WebSocket server for the inbox's real-time push (dev only for now — the
+  # test stack and Playwright still exercise the polling fallback). app-dev
+  # reaches this over the Docker network at reverb-dev:8080 (REVERB_HOST/
+  # PORT in server/.env); the browser connects to the host-mapped port
+  # directly via web/.env's VITE_REVERB_*.
+  reverb-dev:
+    build:
+      context: ./server
+      target: app
+      args:
+        INSTALL_DEV_DEPENDENCIES: "true"
+    entrypoint: []
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    ports:
+      - "${DEV_REVERB_PORT:-8090}:8080"
+    volumes:
+      - ./server:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+    profiles: [dev]
+
+  web-dev:
     image: node:24-alpine
-    working_dir: /var/www/html
+    working_dir: /app
     command: sh -c "npm ci && npm run dev"
     environment:
       VITE_POLLING: "1"
+      VITE_API_URL: ${DEV_API_URL:-http://localhost:8080}
     ports:
       - "5173:5173"
     volumes:
-      - .:/var/www/html
+      - ./web:/app
       # Shadow the host's node_modules: native binaries differ per platform.
-      - vite-node-modules:/var/www/html/node_modules
+      - web-node-modules:/app/node_modules
     profiles: [dev]
 
   db:
@@ -158,29 +195,48 @@ services:
   # ── test ────────────────────────────────────────────────────────────────────
   app-test:
     build:
-      context: .
+      context: ./server
       target: app
       args:
         INSTALL_DEV_DEPENDENCIES: "true"
     entrypoint: entrypoint-test.sh
     environment:
       APP_ENV: testing
+      # Pinned, not inherited: server/.env is mounted with the source, so
+      # without these a developer's Danish default would leak in and every
+      # literal-English e2e assertion would break.
+      APP_LOCALE: en
+      APP_FALLBACK_LOCALE: en
       APP_DEBUG: "true"
       APP_URL: http://localhost:9080
+      FRONTEND_URL: http://localhost:${TEST_WEB_PORT:-9081}
+      SANCTUM_STATEFUL_DOMAINS: localhost:${TEST_WEB_PORT:-9081}
       DB_CONNECTION: pgsql
       DB_HOST: db-test
       DB_PORT: 5432
-      DB_DATABASE: ${TEST_DB_DATABASE:-inspection_book_test}
-      DB_USERNAME: ${TEST_DB_USERNAME:-inspection_book_test}
-      DB_PASSWORD: ${TEST_DB_PASSWORD:-inspection-book-test}
+      DB_DATABASE: ${TEST_DB_DATABASE:-client_book_test}
+      DB_USERNAME: ${TEST_DB_USERNAME:-client_book_test}
+      DB_PASSWORD: ${TEST_DB_PASSWORD:-client-book-test}
       FILESYSTEM_DISK: local
       MAIL_MAILER: smtp
       MAIL_HOST: mailpit-test
       MAIL_PORT: 1025
       MAIL_FROM_ADDRESS: test@example.com
-      MAIL_FROM_NAME: "Inspection Book"
+      MAIL_FROM_NAME: "Commlink"
+      # Pinned, not inherited: server/.env is mounted with the source, so
+      # without these a developer's real Twilio settings would leak in and
+      # the suite would text actual phones.
+      SMS_TRANSPORT: log
+      TWILIO_SID: ""
+      TWILIO_AUTH_TOKEN: ""
+      EMAIL_TRANSPORT: log
+      INBOX_SMS_WEBHOOK_URL: ""
+      # Same reason: no Reverb server runs in the test stack (see reverb-dev
+      # under dev), so a live "reverb" connection here would fail every
+      # request that broadcasts.
+      BROADCAST_CONNECTION: log
     volumes:
-      - .:/var/www/html
+      - ./server:/var/www/html
     depends_on:
       db-test:
         condition: service_healthy
@@ -195,32 +251,43 @@ services:
       - "${TEST_MAILPIT_PORT:-9025}:8025"
     profiles: [test]
 
-  web-test:
+  api-test:
     build:
-      context: .
+      context: ./server
       target: web
     environment:
       FPM_HOST: app-test
     ports:
       - "${TEST_HTTP_PORT:-9080}:80"
     volumes:
-      - ./public:/var/www/html/public:ro
+      - ./server/public:/var/www/html/public:ro
     depends_on:
       - app-test
+    profiles: [test]
+
+  web-test:
+    build:
+      context: ./web
+      args:
+        VITE_API_URL: http://localhost:9080
+    ports:
+      - "${TEST_WEB_PORT:-9081}:80"
+    depends_on:
+      - api-test
     profiles: [test]
 
   db-test:
     image: postgres:18-alpine
     environment:
-      POSTGRES_DB: ${TEST_DB_DATABASE:-inspection_book_test}
-      POSTGRES_USER: ${TEST_DB_USERNAME:-inspection_book_test}
-      POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:-inspection-book-test}
+      POSTGRES_DB: ${TEST_DB_DATABASE:-client_book_test}
+      POSTGRES_USER: ${TEST_DB_USERNAME:-client_book_test}
+      POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:-client-book-test}
     ports:
       - "${TEST_DB_PORT:-5433}:5432"
     tmpfs:
       - /var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${TEST_DB_USERNAME:-inspection_book_test} -d ${TEST_DB_DATABASE:-inspection_book_test}"]
+      test: ["CMD-SHELL", "pg_isready -U ${TEST_DB_USERNAME:-client_book_test} -d ${TEST_DB_DATABASE:-client_book_test}"]
       interval: 2s
       timeout: 3s
       retries: 30
@@ -229,7 +296,7 @@ services:
 volumes:
   db-data:
   minio-data:
-  vite-node-modules:
+  web-node-modules:
 
 networks:
   dokploy-network:
